@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Data: the workbook (binary, diffs not meaningful) and all regenerable build
+# artifacts (parsed/, wiki/, md/, *.json, *.graphml). Commit src/, not data/.
+data/
+
+# Frontend build / deps
+frontend/node_modules/
+frontend/dist/
+
+# Editor / OS
+.DS_Store
+*.swp
+
+# Local agent/session state
+.claude/

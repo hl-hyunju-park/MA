@@ -1,0 +1,252 @@
+"""Stage 5: build the navigable index / table-of-contents over the wiki pages.
+
+This is the entry point an agent reads first to decide *which page to open* — the
+"key" of the vectorless KB. Deterministic (no LLM): it joins the sheet-name taxonomy,
+the parsed metadata, and the formula DAG into two artifacts:
+
+  - ``data/wiki/index.json``  — machine-readable: a section->group->page tree, a
+    per-page entry (title/case/unit/aliases/items/links), and an **alias index**
+    (``term -> [{page, cell}]``) that resolves a KO/EN query term to page+cell with no
+    embeddings (the words->node resolver).
+  - ``data/wiki/INDEX.md``    — the human/agent table of contents: sections with
+    ``[[page]]`` wikilinks and key aliases.
+
+Classification is by sheet-name **tokens**, not divider position: ``_raw.xlsx`` is
+missing the ` Biz Plan>>`/`Fin.Model>>` divider tabs, so position-walking would mis-group
+the fund/macro sheets. Tokens (``장표``, ``_비용``/``_거래내역``/``_관리보수``, ``EIU``,
+``4.1``/``4.2``) are the schema (see docs/workbook_analysis.md §0).
+
+Usage (from repo root, venv active; needs data/parsed + data/wiki/pages):
+    python -m src.stella_kb.wiki.index
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import openpyxl
+
+from .. import WORKBOOK
+from .compile import sheet_links, value_series
+
+PARSED_DIR = Path("data/parsed")
+PAGES_DIR = Path("data/wiki/pages")
+OUT_JSON = Path("data/wiki/index.json")
+OUT_MD = Path("data/wiki/INDEX.md")
+
+
+def classify(name: str) -> dict:
+    """Map a sheet name to its logical {section, group, kind, case} via name tokens."""
+    if "EIU" in name:
+        return {"section": "거시 가정 (Macro · EIU)", "group": "EIU",
+                "kind": "macro", "case": None}
+    if "장표" in name or name in {"Football Chart", "Bridge"}:
+        case = ("MGT" if name.endswith("_MGT")
+                else "DTT" if name.endswith("_DTT") else None)
+        fam = name.split("장표")[0].strip() or name
+        return {"section": "PPT 장표 (Exhibits)", "group": fam,
+                "kind": "exhibit", "case": case}
+    for suf, kind in (("_비용", "비용 (costs)"), ("_거래내역", "거래내역 (ledger)"),
+                      ("_관리보수", "관리보수 (fee schedule)")):
+        if name.endswith(suf):
+            return {"section": "Biz Plan (per-fund)", "group": name[:-len(suf)],
+                    "kind": kind, "case": None}
+    if name == "IRR":
+        return {"section": "Biz Plan (per-fund)", "group": "IRR",
+                "kind": "return model", "case": None}
+    if name.startswith("4.1") or name == "PL_FY24(A)":
+        return {"section": "BSPL (재무제표)",
+                "group": "4.1 Centroid Investment Partners",
+                "kind": "statement", "case": None}
+    if name.startswith("4.2"):
+        return {"section": "BSPL (재무제표)", "group": "4.2 Centroid Management",
+                "kind": "statement", "case": None}
+    return {"section": "기타 (Other)", "group": name, "kind": None, "case": None}
+
+
+def _norm(term: str) -> str:
+    return re.sub(r"\s+", "", term).casefold()
+
+
+def _desc(sheet: str) -> str | None:
+    """First sentence of the page's grounded "What this is" prose, for the ToC.
+
+    Reuses the already-LLM-written Korean blurb in ``data/wiki/pages/<sheet>.md`` so the
+    index gains a discriminating one-liner per sheet with no extra LLM call. Titles alone
+    collide ("Income Statement" ×2, "DCF Summary" ×2); this disambiguates by purpose.
+    """
+    p = PAGES_DIR / f"{sheet}.md"
+    if not p.exists():
+        return None
+    m = re.search(r"## What this is\s*\n+(.+?)(?:\n##|\Z)", p.read_text(encoding="utf-8"), re.S)
+    if not m:
+        return None
+    para = m.group(1).strip()
+    if not para or para.startswith("_("):  # scaffold / "prose unavailable"
+        return None
+    first = re.split(r"(?<=다)\.\s", para)[0].strip().rstrip(".") + "."
+    first = re.sub(rf"^'{re.escape(sheet)}'\s*시트", "이 시트", first)  # drop redundant sheet name
+    return first[:160]
+
+
+def load_all_values() -> dict[str, dict]:
+    """``{sheet: {coord: value}}`` for the whole workbook in one open (for data status)."""
+    wb = openpyxl.load_workbook(WORKBOOK, data_only=True, read_only=True)
+    out = {ws.title: {c.coordinate: c.value for row in ws.iter_rows()
+                      for c in row if c.value is not None}
+           for ws in wb.worksheets}
+    wb.close()
+    return out
+
+
+def _period(axis: dict) -> str | None:
+    """Year range string from an axis's column->year map, e.g. ``2021–2029``."""
+    years = [v for v in (axis.get("columns") or {}).values() if isinstance(v, int)]
+    return f"{min(years)}–{max(years)}" if years else None
+
+
+def _data_status(items: list, vals: dict, axis_cols: dict) -> str:
+    """Routing signal: are the line-item cells real numbers, errors, or empty?"""
+    real = ref = 0
+    for it in items:
+        for _, v, _ in value_series(vals, it, axis_cols):
+            if isinstance(v, bool):
+                continue
+            if isinstance(v, (int, float)):
+                real += 1
+            elif isinstance(v, str) and v.startswith("#"):  # #REF!, #DIV/0!, ...
+                ref += 1
+    if real == 0 and ref > 0:
+        return "none (#REF!)"
+    if ref > 0:
+        return "partial"
+    return "full" if real > 0 else "—"
+
+
+def build_index() -> dict:
+    parsed = {p.stem: json.loads(p.read_text(encoding="utf-8"))
+              for p in sorted(PARSED_DIR.glob("*.json"))}
+    pages_on_disk = {p.stem for p in PAGES_DIR.glob("*.md")}
+    links = sheet_links()
+    all_vals = load_all_values()
+
+    pages: dict[str, dict] = {}
+    tree: dict[str, dict[str, list]] = {}
+    aliases: dict[str, list] = {}
+
+    for sheet, data in parsed.items():
+        cls = classify(sheet)
+        meta = data.get("meta") or {}
+        items = data.get("line_items") or []
+
+        # per-page alias set + feed the global alias index (term -> page+cell)
+        page_aliases: list[str] = []
+        for it in items:
+            cell = it.get("label_cell")
+            terms = [it.get("label"), it.get("label_ko"), it.get("label_en"),
+                     *(it.get("aliases") or [])]
+            for t in terms:
+                if not t:
+                    continue
+                if t not in page_aliases:
+                    page_aliases.append(t)
+                key = _norm(t)
+                bucket = aliases.setdefault(key, [])
+                if not any(h["page"] == sheet and h["cell"] == cell for h in bucket):
+                    bucket.append({"page": sheet, "cell": cell, "term": t})
+
+        axis = data.get("year_axis") or {}
+        vals = all_vals.get(sheet, {})
+        key_terms: list[str] = []
+        for it in items:
+            t = it.get("label_ko") or it.get("label")
+            if t and t not in key_terms:
+                key_terms.append(t)
+
+        link = links.get(sheet, {})
+        entry = {
+            "sheet": sheet,
+            "title": meta.get("title") or sheet,
+            "desc": _desc(sheet),
+            "section": cls["section"],
+            "group": cls["group"],
+            "kind": cls["kind"],
+            "case": meta.get("case") or cls["case"],
+            "unit": meta.get("unit"),
+            "period": _period(axis),
+            "data_status": _data_status(items, vals, axis.get("columns") or {}),
+            "n_items": len(items),
+            "has_page": sheet in pages_on_disk,
+            "key_terms": key_terms[:6],
+            "aliases": page_aliases,
+            "items": [{"label": it.get("label"), "ko": it.get("label_ko"),
+                       "cell": it.get("label_cell"), "role": it.get("role")}
+                      for it in items],
+            "depends_on": [s for s in link.get("depends_on", []) if s in parsed],
+            "feeds_into": [s for s in link.get("feeds_into", []) if s in parsed],
+        }
+        pages[sheet] = entry
+        tree.setdefault(cls["section"], {}).setdefault(cls["group"], []).append(sheet)
+
+    return {"tree": tree, "pages": pages, "alias_index": aliases}
+
+
+def render_md(index: dict) -> str:
+    pages, tree = index["pages"], index["tree"]
+    n_alias = len(index["alias_index"])
+    out = ["# Project Stella — Wiki Index (ToC)", "",
+           f"> {len(pages)} pages · {n_alias} alias terms · vectorless lookup: resolve a "
+           "KO/EN term via the alias index → open the `[[page]]` → follow links.",
+           ">",
+           "> `data:` **full** = real numbers · **partial** = some `#REF!` · "
+           "**none (#REF!)** = engine sheet missing in `_raw` (skip) · **—** = no values.",
+           ""]
+
+    for section in sorted(tree):
+        out += [f"## {section}", ""]
+        for group in sorted(tree[section]):
+            sheets = sorted(tree[section][group])
+            if len(sheets) > 1 or group not in sheets:
+                out.append(f"### {group}")
+            for s in sheets:
+                e = pages[s]
+                meta = [e["kind"] or ""]
+                if e["case"]:
+                    meta.append(f"case {e['case']}")
+                if e["period"]:
+                    meta.append(e["period"])
+                if e["unit"]:
+                    meta.append(e["unit"])
+                meta.append(f"{e['n_items']} items")
+                meta.append(f"data: {e['data_status']}")
+                out.append(f"- **[[{s}]]** — {e['title']}")
+                if e.get("desc"):
+                    out.append(f"  - {e['desc']}")
+                out.append(f"  - {' · '.join(m for m in meta if m)}")
+                if e["key_terms"]:
+                    out.append(f"  - terms: {', '.join(e['key_terms'])}")
+                rel = []
+                if e["depends_on"]:
+                    rel.append("← " + ", ".join(f"[[{d}]]" for d in e["depends_on"][:4]))
+                if e["feeds_into"]:
+                    rel.append("→ " + ", ".join(f"[[{d}]]" for d in e["feeds_into"][:4]))
+                if rel:
+                    out.append(f"  - links: {'  '.join(rel)}")
+            out.append("")
+    return "\n".join(out) + "\n"
+
+
+if __name__ == "__main__":
+    index = build_index()
+    OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+    OUT_JSON.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    OUT_MD.write_text(render_md(index), encoding="utf-8")
+
+    n_pages = len(index["pages"])
+    n_alias = len(index["alias_index"])
+    n_sections = len(index["tree"])
+    print(f"index: {n_pages} pages, {n_sections} sections, {n_alias} alias terms")
+    print(f"  -> {OUT_JSON}")
+    print(f"  -> {OUT_MD}")
