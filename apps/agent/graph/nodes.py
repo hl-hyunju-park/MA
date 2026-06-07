@@ -50,11 +50,13 @@ def _ask(system: str, user: str, max_tokens: int) -> tuple[dict | None, str]:
     return parse_action(raw), raw
 
 
-def _push(trace: list, agent: str, action: str, arg: str, thought: str) -> list:
-    """Append a routing record; ``step`` is the running entry count."""
-    trace = list(trace)
-    trace.append({"step": len(trace), "agent": agent, "action": action, "arg": arg, "thought": thought})
-    return trace
+def _entry(state: AgentState, agent: str, action: str, arg: str, thought: str) -> list:
+    """One trace record as a single-item delta; the ``trace`` reducer appends it.
+
+    ``step`` is the running entry count read from the current trace (the pipeline is
+    linear, so this index is deterministic)."""
+    step = len(state.get("trace", []))
+    return [{"step": step, "agent": agent, "action": action, "arg": arg, "thought": thought}]
 
 
 # --------------------------------------------------------------------------- planner
@@ -70,9 +72,8 @@ def planner_node(state: AgentState) -> AgentState:
         print(f"[planner] {len(plan)} sub-question(s)")
     return {
         "plan": plan, "cursor": 0, "retries": 0, "tried_pages": [], "pages": [],
-        "evidence": state.get("evidence", []),
-        "trace": _push(state.get("trace", []), "planner", "plan",
-                       f"{len(plan)} sub-Q", (act or {}).get("thought", "")),
+        "trace": _entry(state, "planner", "plan",
+                        f"{len(plan)} sub-Q", (act or {}).get("thought", "")),
     }
 
 
@@ -94,8 +95,8 @@ def router_node(state: AgentState, index: dict) -> AgentState:
         print(f"[router] sub#{state['cursor']} -> {picks}")
     return {
         "pages": picks,
-        "trace": _push(state.get("trace", []), "router", "route",
-                       ", ".join(picks) or "(none)", (act or {}).get("thought", "")),
+        "trace": _entry(state, "router", "route",
+                        ", ".join(picks) or "(none)", (act or {}).get("thought", "")),
     }
 
 
@@ -121,11 +122,11 @@ def retriever_node(state: AgentState) -> AgentState:
     if state.get("verbose"):
         print(f"[retriever] +{len(ev)} evidence from {pages}")
     return {
-        "evidence": list(state.get("evidence", [])) + ev,
-        "tried_pages": list(state.get("tried_pages", [])) + pages,
+        "evidence": ev,                                           # reducer appends to the run
+        "tried_pages": list(state.get("tried_pages", [])) + pages,  # overwrite channel: extend by hand
         "steps": state.get("steps", 0) + 1,
-        "trace": _push(state.get("trace", []), "retriever", "read",
-                       f"{len(ev)} fact(s) from {pages}", (act or {}).get("thought", "")),
+        "trace": _entry(state, "retriever", "read",
+                        f"{len(ev)} fact(s) from {pages}", (act or {}).get("thought", "")),
     }
 
 
@@ -154,8 +155,8 @@ def verifier_node(state: AgentState) -> AgentState:
         print(f"[verifier] {verdict} -> {route}")
     return {
         "route": route,
-        "trace": _push(state.get("trace", []), "verifier", "verify",
-                       f"{verdict} -> {route}", (act or {}).get("reason", "")),
+        "trace": _entry(state, "verifier", "verify",
+                        f"{verdict} -> {route}", (act or {}).get("reason", "")),
         **out,
     }
 
@@ -173,5 +174,5 @@ def synthesizer_node(state: AgentState) -> AgentState:
     text = ((act or {}).get("text") or raw or "").strip() or "(빈 답변)"
     return {
         "answer": text,
-        "trace": _push(state.get("trace", []), "synthesizer", "answer", "", (act or {}).get("thought", "")),
+        "trace": _entry(state, "synthesizer", "answer", "", (act or {}).get("thought", "")),
     }

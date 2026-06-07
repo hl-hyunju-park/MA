@@ -4,7 +4,13 @@ its own LLM prompt from these fields, so there is no single growing transcript."
 
 from __future__ import annotations
 
-from typing import TypedDict
+import operator
+from typing import Annotated, TypedDict
+
+# Two channels accumulate monotonically across the run — every node appends and nothing
+# ever resets them — so they carry an ``operator.add`` reducer: a node returns ONLY its
+# new items and LangGraph concatenates. The other list fields (``pages``/``tried_pages``)
+# are reset per sub-question, so they keep the default overwrite reducer (manual lists).
 
 
 class AgentState(TypedDict, total=False):
@@ -15,9 +21,9 @@ class AgentState(TypedDict, total=False):
     cursor: int            # which sub-question (index into plan) is being worked
     pages: list            # page names the router picked for the current sub-question
     tried_pages: list      # pages already read for the current sub-question (retry guard)
-    evidence: list         # accumulated [{page, cell, term, value, ask}] across sub-Qs
+    evidence: Annotated[list, operator.add]  # accumulated [{page, cell, term, value, ask}]
     answer: str            # the synthesizer's final Korean answer
-    trace: list            # per-turn record [{step, agent, action, arg, thought}]
+    trace: Annotated[list, operator.add]     # per-turn record [{step, agent, action, arg, thought}]
     steps: int             # retriever reads consumed (the budget unit)
     max_steps: int
     retries: int           # verifier→router retries spent on the current sub-question
