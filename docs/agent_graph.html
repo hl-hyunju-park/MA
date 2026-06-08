@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Stella agent graph</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #faf9ff; color: #222; }
+  header { padding: 14px 18px; border-bottom: 1px solid #e6e1f5; }
+  header h1 { margin: 0 0 4px; font-size: 18px; }
+  header p { margin: 0; color: #666; font-size: 13px; }
+  #cy { width: 100vw; height: calc(100vh - 132px); }
+  #legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 18px; border-top: 1px solid #e6e1f5;
+            background: #fff; font-size: 12px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .muted { color: #888; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Project Stella — query agent graph</h1>
+  <p>planner → <b>fan-out</b> (one <code>solve</code> branch per sub-question, ≤4 concurrent) → synthesizer.
+     Drag nodes to rearrange. Dotted = <code>Send</code> dispatch / retry loop.</p>
+</header>
+<div id="cy"></div>
+<div id="legend">
+  <span class="chip"><span class="dot" style="background:#8b5cf6"></span>planner</span>
+  <span class="chip"><span class="dot" style="background:#3b82f6"></span>router</span>
+  <span class="chip"><span class="dot" style="background:#10b981"></span>retriever</span>
+  <span class="chip"><span class="dot" style="background:#ef4444"></span>verifier</span>
+  <span class="chip"><span class="dot" style="background:#f59e0b"></span>synthesizer</span>
+  <span class="chip muted">— solid: control flow · ┄ dotted: Send / retry</span>
+  <span class="chip muted">branches merge via operator.add channels (evidence · paths · trace · steps)</span>
+</div>
+<script>
+const COLOR = { start:'#9ca3af', planner:'#8b5cf6', router:'#3b82f6', retriever:'#10b981',
+                verifier:'#ef4444', synthesizer:'#f59e0b', end:'#9ca3af' };
+
+// One representative fan-out with two branches (the planner emits N; runtime caps at 4).
+function branch(i, x) {
+  const s = `b${i}`;
+  return {
+    nodes: [
+      { data:{ id:`${s}_router`, label:`router\n(sub-Q ${i})`, role:'router' }, position:{x, y:210} },
+      { data:{ id:`${s}_retr`, label:'retriever\n1 LLM / page', role:'retriever' }, position:{x, y:310} },
+      { data:{ id:`${s}_ver`, label:'verifier', role:'verifier' }, position:{x, y:410} },
+    ],
+    edges: [
+      { data:{ source:`${s}_router`, target:`${s}_retr` } },
+      { data:{ source:`${s}_retr`, target:`${s}_ver` } },
+      { data:{ source:`${s}_ver`, target:`${s}_router`, label:'gap→retry', kind:'dotted' } },
+      { data:{ source:'planner', target:`${s}_router`, label:'Send', kind:'dotted' } },
+      { data:{ source:`${s}_ver`, target:'synth' } },
+    ],
+  };
+}
+
+const b0 = branch(0, 230), b1 = branch(1, 570);
+const elements = [
+  { data:{ id:'start', label:'START', role:'start' }, position:{x:400, y:30} },
+  { data:{ id:'planner', label:'planner\nsplit → sub-Qs', role:'planner' }, position:{x:400, y:110} },
+  ...b0.nodes, ...b1.nodes,
+  { data:{ id:'synth', label:'synthesizer\njoin → cited answer', role:'synthesizer' }, position:{x:400, y:510} },
+  { data:{ id:'end', label:'END', role:'end' }, position:{x:400, y:590} },
+  { data:{ source:'start', target:'planner' } },
+  ...b0.edges, ...b1.edges,
+  { data:{ source:'synth', target:'end' } },
+];
+
+cytoscape({
+  container: document.getElementById('cy'),
+  elements,
+  layout: { name:'preset' },
+  minZoom: 0.4, maxZoom: 2.5,
+  style: [
+    { selector:'node', style:{
+        'background-color': e => COLOR[e.data('role')] || '#888',
+        'label':'data(label)', 'text-wrap':'wrap', 'text-valign':'center', 'text-halign':'center',
+        'color':'#fff', 'font-size':'11px', 'text-max-width':'120px',
+        'width':'120px', 'height':'52px', 'shape':'round-rectangle',
+        'text-outline-width':0, 'border-width':0 } },
+    { selector:'node[role="start"], node[role="end"]', style:{ 'shape':'ellipse', 'width':'70px', 'height':'40px', 'color':'#fff' } },
+    { selector:'node[role="verifier"]', style:{ 'shape':'diamond', 'width':'96px', 'height':'72px' } },
+    { selector:'edge', style:{
+        'width':2, 'line-color':'#b9b3d6', 'target-arrow-color':'#b9b3d6',
+        'target-arrow-shape':'triangle', 'curve-style':'bezier',
+        'label':'data(label)', 'font-size':'9px', 'color':'#777', 'text-background-color':'#faf9ff',
+        'text-background-opacity':1, 'text-background-padding':'2px' } },
+    { selector:'edge[kind="dotted"]', style:{ 'line-style':'dashed', 'line-color':'#c4bdf0',
+        'target-arrow-color':'#c4bdf0', 'curve-style':'unbundled-bezier', 'control-point-distances':[-60], 'control-point-weights':[0.5] } },
+  ],
+});
+</script>
+</body>
+</html>
