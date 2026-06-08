@@ -74,6 +74,7 @@ src/stella_kb/
     dump_sheet.py         # dump any sheet's cells (value + formula) for analysis
     parse_llm.py          # LLM parse pass: grid -> grounded structural schema (data/parsed/)
     compile.py            # compile wiki pages from parsed schema (data/wiki/pages/)  (was wiki.py)
+    carry.py              # curated per-fund 성과보수/재산분배액 page (sheet lives only in full wb)
     index.py              # build INDEX.md + index.json routing table
 apps/agent/               # query agent (separate from the build pipeline above)
   core.py                 # public API: run / ask / stream_run

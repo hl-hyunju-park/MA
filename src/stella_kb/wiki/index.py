@@ -28,13 +28,21 @@ from pathlib import Path
 
 import openpyxl
 
-from .. import WORKBOOK
+from .. import DATA_DIR, WORKBOOK
 from .compile import sheet_links, value_series
 
 PARSED_DIR = Path("data/parsed")
 PAGES_DIR = Path("data/wiki/pages")
 OUT_JSON = Path("data/wiki/index.json")
 OUT_MD = Path("data/wiki/INDEX.md")
+
+# `_raw.xlsx` (the canonical WORKBOOK) drops the Fin.Model engine/source sheets, so the
+# curated `성과보수, 배당금` page is sourced from the full `(Updated)` workbook instead.
+# Read just that one sheet's values from there so its data_status reflects reality.
+FULL_WORKBOOK = str(
+    DATA_DIR / "raw" / "Project Stella_Valuation Model_251103_vShared(Updated).xlsx"
+)
+FULL_ONLY_SHEETS = ("성과보수, 배당금",)
 
 
 def classify(name: str) -> dict:
@@ -53,6 +61,9 @@ def classify(name: str) -> dict:
         if name.endswith(suf):
             return {"section": "Biz Plan (per-fund)", "group": name[:-len(suf)],
                     "kind": kind, "case": None}
+    if name == "성과보수, 배당금":
+        return {"section": "Fin.Model (밸류에이션 엔진)", "group": "성과보수·배당금",
+                "kind": "fee model", "case": None}
     if name == "IRR":
         return {"section": "Biz Plan (per-fund)", "group": "IRR",
                 "kind": "return model", "case": None}
@@ -98,6 +109,16 @@ def load_all_values() -> dict[str, dict]:
                       for c in row if c.value is not None}
            for ws in wb.worksheets}
     wb.close()
+    # pull the engine sheets absent from `_raw` from the full workbook (exception)
+    missing = [s for s in FULL_ONLY_SHEETS if s not in out]
+    if missing:
+        fwb = openpyxl.load_workbook(FULL_WORKBOOK, data_only=True, read_only=True)
+        for s in missing:
+            if s in fwb.sheetnames:
+                ws = fwb[s]
+                out[s] = {c.coordinate: c.value for row in ws.iter_rows()
+                          for c in row if c.value is not None}
+        fwb.close()
     return out
 
 
