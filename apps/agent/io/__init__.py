@@ -8,9 +8,10 @@ from .tools import (
     load_index,
     lookup,
     open_page,
+    trace_links,
 )
 
 __all__ = [
     "WIKI_DIR", "INDEX_MD", "INDEX_JSON", "PAGES_DIR",
-    "load_index", "lookup", "open_page",
+    "load_index", "lookup", "open_page", "trace_links",
 ]

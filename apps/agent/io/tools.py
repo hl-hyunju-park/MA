@@ -69,6 +69,41 @@ def lookup(index: dict, term: str, limit: int = 12) -> str:
     return "\n".join(lines)
 
 
+def trace_links(index: dict, start: str, direction: str = "down",
+                max_depth: int = 4, cap: int = 14) -> list[dict]:
+    """Walk the sheet-level formula DAG from ``start`` — the deterministic provenance hop.
+
+    BFS over ``index['sheet_dag']`` following ``feeds_into`` (``direction='down'`` — where a
+    value *flows to*) or ``depends_on`` (``direction='up'`` — what a value *comes from*).
+    Cycle-safe (Excel has bidirectional engine refs) and depth/size capped. Returns ordered
+    ``[{sheet, depth, has_page}]`` — the auditable chain; ``has_page`` flags which hops the
+    agent can actually open (engine sheets like ``DCF`` have no wiki page but still belong on
+    the path).
+    """
+    from collections import deque
+
+    dag = index.get("sheet_dag", {})
+    pages = index.get("pages", {})
+    key = "feeds_into" if direction == "down" else "depends_on"
+
+    seen = {start}
+    chain: list[dict] = []
+    dq = deque([(start, 0)])
+    while dq and len(chain) < cap:
+        node, d = dq.popleft()
+        if d >= max_depth:
+            continue
+        for nb in dag.get(node, {}).get(key, []):
+            if nb in seen:
+                continue
+            seen.add(nb)
+            chain.append({"sheet": nb, "depth": d + 1, "has_page": nb in pages})
+            dq.append((nb, d + 1))
+            if len(chain) >= cap:
+                break
+    return chain
+
+
 def open_page(name: str) -> str:
     """Return a page's markdown (frontmatter trimmed to the essentials to save context)."""
     path = PAGES_DIR / f"{name}.md"

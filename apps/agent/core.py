@@ -24,7 +24,7 @@ def _seed(question: str, max_steps: int, verbose: bool = False) -> AgentState:
         "question": question,
         "index_md": INDEX_MD.read_text(encoding="utf-8"),
         "plan": [], "cursor": 0, "pages": [], "tried_pages": [], "evidence": [],
-        "trace": [], "steps": 0, "max_steps": max_steps, "retries": 0,
+        "paths": [], "trace": [], "steps": 0, "max_steps": max_steps, "retries": 0,
         "verbose": verbose,
     }
 

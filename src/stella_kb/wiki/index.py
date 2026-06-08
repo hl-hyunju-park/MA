@@ -29,6 +29,7 @@ from pathlib import Path
 import openpyxl
 
 from .. import DATA_DIR, WORKBOOK
+from ..graph.extract import build_dependency_graph
 from .compile import sheet_links, value_series
 
 PARSED_DIR = Path("data/parsed")
@@ -146,6 +147,29 @@ def _data_status(items: list, vals: dict, axis_cols: dict) -> str:
     return "full" if real > 0 else "—"
 
 
+def build_sheet_dag(path: str) -> dict[str, dict[str, list[str]]]:
+    """The whole workbook's **sheet-level formula DAG** — the agent's provenance substrate.
+
+    Collapses the cell-level dependency edges to ``{sheet: {depends_on, feeds_into}}`` over
+    *every* sheet (not just wiki pages). Built from the **full** workbook because the
+    valuation chain (`성과보수, 배당금` → `Operating Revenue` → `DCF` → `DCF 장표 #1_MGT`)
+    flows through the Fin.Model engine sheets that `_raw` drops; the agent traces this graph
+    and opens a wiki page wherever one exists along the path. Cross-sheet only; cycles kept
+    (Excel has bidirectional engine refs — the BFS de-dups).
+    """
+    dg = build_dependency_graph(path)
+    links: dict[str, dict[str, set]] = {}
+    for prec, dep in dg.edges:
+        sp, sd = prec.rsplit("!", 1)[0], dep.rsplit("!", 1)[0]
+        if sp == sd:
+            continue
+        links.setdefault(sd, {"depends_on": set(), "feeds_into": set()})
+        links.setdefault(sp, {"depends_on": set(), "feeds_into": set()})
+        links[sd]["depends_on"].add(sp)
+        links[sp]["feeds_into"].add(sd)
+    return {s: {k: sorted(v) for k, v in d.items()} for s, d in links.items()}
+
+
 def build_index() -> dict:
     parsed = {p.stem: json.loads(p.read_text(encoding="utf-8"))
               for p in sorted(PARSED_DIR.glob("*.json"))}
@@ -211,7 +235,8 @@ def build_index() -> dict:
         pages[sheet] = entry
         tree.setdefault(cls["section"], {}).setdefault(cls["group"], []).append(sheet)
 
-    return {"tree": tree, "pages": pages, "alias_index": aliases}
+    sheet_dag = build_sheet_dag(FULL_WORKBOOK)
+    return {"tree": tree, "pages": pages, "alias_index": aliases, "sheet_dag": sheet_dag}
 
 
 def render_md(index: dict) -> str:
@@ -268,6 +293,8 @@ if __name__ == "__main__":
     n_pages = len(index["pages"])
     n_alias = len(index["alias_index"])
     n_sections = len(index["tree"])
-    print(f"index: {n_pages} pages, {n_sections} sections, {n_alias} alias terms")
+    n_dag = len(index["sheet_dag"])
+    print(f"index: {n_pages} pages, {n_sections} sections, {n_alias} alias terms, "
+          f"{n_dag}-sheet provenance DAG")
     print(f"  -> {OUT_JSON}")
     print(f"  -> {OUT_MD}")

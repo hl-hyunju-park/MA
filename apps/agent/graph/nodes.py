@@ -12,7 +12,7 @@ import json
 
 from src.stella_kb.llm import chat
 
-from ..io import lookup, open_page
+from ..io import lookup, open_page, trace_links
 from ..prompts import load as load_prompt
 from .state import AgentState
 
@@ -68,6 +68,9 @@ def planner_node(state: AgentState) -> AgentState:
     plan = [p for p in ((act or {}).get("plan") or []) if isinstance(p, dict) and p.get("ask")]
     if not plan:  # parse miss / empty → fall back to a single pass-through sub-question
         plan = [{"ask": state["question"], "hint_terms": []}]
+    for p in plan:  # normalize the routing controls so downstream nodes can rely on them
+        p["mode"] = "trace" if p.get("mode") == "trace" else "lookup"
+        p["direction"] = "up" if p.get("direction") == "up" else "down"
     if state.get("verbose"):
         print(f"[planner] {len(plan)} sub-question(s)")
     return {
@@ -91,12 +94,27 @@ def router_node(state: AgentState, index: dict) -> AgentState:
     act, _ = _ask(ROUTER, user, 400)
     valid = set(index.get("pages", {}).keys())
     picks = [p for p in ((act or {}).get("pages") or []) if p in valid]  # drop hallucinated pages
+
+    # provenance hop: from the focal page, walk the sheet-level formula DAG and pull in the
+    # pages along the chain so the retriever reads the whole path in one pass.
+    out: dict = {}
+    if sub.get("mode") == "trace" and picks:
+        direction = sub.get("direction", "down")
+        chain = trace_links(index, picks[0], direction=direction)
+        chain_pages = [c["sheet"] for c in chain
+                       if c["has_page"] and c["sheet"] not in picks][:5]
+        out["paths"] = [{"ask": sub["ask"], "direction": direction,
+                         "start": picks[0], "chain": chain}]
+        picks = picks + chain_pages
+
     if state.get("verbose"):
-        print(f"[router] sub#{state['cursor']} -> {picks}")
+        tag = f" [trace {sub.get('direction')}]" if sub.get("mode") == "trace" else ""
+        print(f"[router] sub#{state['cursor']}{tag} -> {picks}")
     return {
         "pages": picks,
         "trace": _entry(state, "router", "route",
                         ", ".join(picks) or "(none)", (act or {}).get("thought", "")),
+        **out,
     }
 
 
@@ -134,13 +152,20 @@ def retriever_node(state: AgentState) -> AgentState:
 def verifier_node(state: AgentState) -> AgentState:
     """Judge whether the sub-question is answered; route to retry / next / synthesize."""
     cur = state["cursor"]
-    ask = state["plan"][cur]["ask"]
+    sub = state["plan"][cur]
+    ask = sub["ask"]
     ev = [e for e in state.get("evidence", []) if e.get("ask") == ask]
     ev_txt = "\n".join(f"- {e['term']} = {e['value']}  ({e['cell']}, {e['page']})" for e in ev) or "(no evidence)"
-    user = f"Sub-question: {ask}\n\nEvidence:\n{ev_txt}\n\nReturn the verdict JSON."
-    act, _ = _ask(VERIFIER, user, 300)
-
-    verdict = ((act or {}).get("verdict") or ("ok" if ev else "gap")).lower()
+    # a trace sub-question is answered by the deterministic chain, not by cell density — if a
+    # non-empty provenance path was found, accept it without an LLM gap-check / retry loop.
+    traced = sub.get("mode") == "trace" and any(
+        p.get("ask") == ask and p.get("chain") for p in state.get("paths", []))
+    if traced:
+        verdict, act = "ok", {"reason": "provenance chain traced"}
+    else:
+        user = f"Sub-question: {ask}\n\nEvidence:\n{ev_txt}\n\nReturn the verdict JSON."
+        act, _ = _ask(VERIFIER, user, 300)
+        verdict = ((act or {}).get("verdict") or ("ok" if ev else "gap")).lower()
     retries = state.get("retries", 0)
     over_budget = state.get("steps", 0) >= state["max_steps"]
     last = cur >= len(state["plan"]) - 1
@@ -168,8 +193,18 @@ def synthesizer_node(state: AgentState) -> AgentState:
     ev_txt = "\n".join(
         f"- [{e['ask']}] {e['term']} = {e['value']}  ({e['cell']}, page {e['page']})" for e in ev
     ) or "(no evidence gathered)"
-    user = (f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}\n\n"
-            "Write the final answer JSON.")
+
+    # provenance chains traced over the formula DAG (sheet path; ⇒ marks a wiki page)
+    path_txt = ""
+    for pth in state.get("paths", []):
+        arrow = "흘러가는" if pth["direction"] == "down" else "의존하는"
+        hops = " → ".join(f"{c['sheet']}{'⇒page' if c['has_page'] else ''}" for c in pth["chain"])
+        if hops:
+            path_txt += f"\n- [{pth['ask']}] {pth['start']} 에서 {arrow} 경로: {pth['start']} → {hops}"
+    path_block = f"\n\nProvenance chains (formula DAG, deterministic):{path_txt}" if path_txt else ""
+
+    user = (f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}"
+            f"{path_block}\n\nWrite the final answer JSON.")
     act, raw = _ask(SYNTHESIZER, user, 700)
     text = ((act or {}).get("text") or raw or "").strip() or "(빈 답변)"
     return {

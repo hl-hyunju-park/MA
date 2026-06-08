@@ -22,6 +22,7 @@ class AgentState(TypedDict, total=False):
     pages: list            # page names the router picked for the current sub-question
     tried_pages: list      # pages already read for the current sub-question (retry guard)
     evidence: Annotated[list, operator.add]  # accumulated [{page, cell, term, value, ask}]
+    paths: Annotated[list, operator.add]     # provenance chains [{ask, direction, chain:[...]}]
     answer: str            # the synthesizer's final Korean answer
     trace: Annotated[list, operator.add]     # per-turn record [{step, agent, action, arg, thought}]
     steps: int             # retriever reads consumed (the budget unit)

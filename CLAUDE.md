@@ -78,7 +78,7 @@ src/stella_kb/
     index.py              # build INDEX.md + index.json routing table
 apps/agent/               # query agent (separate from the build pipeline above)
   core.py                 # public API: run / ask / stream_run
-  io/tools.py             # deterministic wiki access: load_index, lookup, open_page
+  io/tools.py             # deterministic wiki access: load_index, lookup, open_page, trace_links (provenance DAG hop)
   graph/                  # LangGraph: state.py (AgentState), nodes.py, build.py (build_app)
   api/                    # FastAPI: server.py (/ask, /ask/stream SSE) + schema/ (pydantic)
   prompts/                # agent prompt(s), Korean-steered
