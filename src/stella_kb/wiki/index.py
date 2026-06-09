@@ -28,7 +28,7 @@ from pathlib import Path
 
 import openpyxl
 
-from .. import DATA_DIR, WORKBOOK, FULL_WORKBOOK
+from .. import WORKBOOK
 from ..graph.extract import build_dependency_graph
 from .compile import sheet_links, value_series
 
@@ -37,10 +37,9 @@ PAGES_DIR = Path("data/wiki/pages")
 OUT_JSON = Path("data/wiki/index.json")
 OUT_MD = Path("data/wiki/INDEX.md")
 
-# `_raw.xlsx` (the canonical WORKBOOK) drops the Fin.Model engine/source sheets, so the
-# curated `성과보수, 배당금` page is sourced from the full `(Updated)` workbook (FULL_WORKBOOK)
-# instead. Read just that one sheet's values from there so its data_status reflects reality.
-FULL_ONLY_SHEETS = ("성과보수, 배당금",)
+# The wiki index covers **only** sheets present in the canonical `_raw` workbook. Engine
+# sheets that live solely in the full `(Updated)` workbook (DCF, AUM Projection, the carry
+# sheet, …) belong to the graph paradigm, not here — so the index never ingests them.
 
 
 def classify(name: str) -> dict:
@@ -105,22 +104,17 @@ def _desc(sheet: str) -> str | None:
 
 
 def load_all_values() -> dict[str, dict]:
-    """``{sheet: {coord: value}}`` for the whole workbook in one open (for data status)."""
+    """``{sheet: {coord: value}}`` for the whole `_raw` workbook in one open (for data status).
+
+    The keys are exactly the `_raw` sheet names — also used as the membership set that keeps
+    the index `_raw`-only.
+    """
     wb = openpyxl.load_workbook(WORKBOOK, data_only=True, read_only=True)
     out = {
         ws.title: {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None}
         for ws in wb.worksheets
     }
     wb.close()
-    # pull the engine sheets absent from `_raw` from the full workbook (exception)
-    missing = [s for s in FULL_ONLY_SHEETS if s not in out]
-    if missing:
-        fwb = openpyxl.load_workbook(FULL_WORKBOOK, data_only=True, read_only=True)
-        for s in missing:
-            if s in fwb.sheetnames:
-                ws = fwb[s]
-                out[s] = {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None}
-        fwb.close()
     return out
 
 
@@ -149,14 +143,14 @@ def _data_status(items: list, vals: dict, axis_cols: dict) -> str:
 
 
 def build_sheet_dag(path: str) -> dict[str, dict[str, list[str]]]:
-    """The whole workbook's **sheet-level formula DAG** — the agent's provenance substrate.
+    """The workbook's **sheet-level formula DAG** — the agent's provenance substrate.
 
-    Collapses the cell-level dependency edges to ``{sheet: {depends_on, feeds_into}}`` over
-    *every* sheet (not just wiki pages). Built from the **full** workbook because the
-    valuation chain (`성과보수, 배당금` → `Operating Revenue` → `DCF` → `DCF 장표 #1_MGT`)
-    flows through the Fin.Model engine sheets that `_raw` drops; the agent traces this graph
-    and opens a wiki page wherever one exists along the path. Cross-sheet only; cycles kept
-    (Excel has bidirectional engine refs — the BFS de-dups).
+    Collapses the cell-level dependency edges to ``{sheet: {depends_on, feeds_into}}``.
+    Built from `_raw` (the index is `_raw`-only): edges still surface references that `_raw`
+    cells make *to* engine sheets (e.g. ``='AUM Projection'!…``) as edge targets — that's
+    information physically present in `_raw` — but no engine sheet appears as a source node.
+    Tracing through the full Fin.Model engine is the graph paradigm's job, not the wiki's.
+    Cross-sheet only; cycles kept (Excel has bidirectional refs — the BFS de-dups).
     """
     dg = build_dependency_graph(path)
     links: dict[str, dict[str, set]] = {}
@@ -172,10 +166,18 @@ def build_sheet_dag(path: str) -> dict[str, dict[str, list[str]]]:
 
 
 def build_index() -> dict:
-    parsed = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted(PARSED_DIR.glob("*.json"))}
+    all_vals = load_all_values()
+    raw_sheets = set(all_vals)  # the canonical `_raw` sheet set — the index covers only these
+
+    # Ingest only parsed JSONs whose sheet exists in `_raw`. Full-workbook-only artifacts
+    # (e.g. carry.py's `성과보수, 배당금.json`) are skipped, so nothing outside `_raw` leaks in.
+    parsed: dict[str, dict] = {}
+    for p in sorted(PARSED_DIR.glob("*.json")):
+        d = json.loads(p.read_text(encoding="utf-8"))
+        if d.get("sheet", p.stem) in raw_sheets:
+            parsed[p.stem] = d
     pages_on_disk = {p.stem for p in PAGES_DIR.glob("*.md")}
     links = sheet_links()
-    all_vals = load_all_values()
 
     pages: dict[str, dict] = {}
     tree: dict[str, dict[str, list]] = {}
@@ -234,7 +236,7 @@ def build_index() -> dict:
         pages[sheet] = entry
         tree.setdefault(cls["section"], {}).setdefault(cls["group"], []).append(sheet)
 
-    sheet_dag = build_sheet_dag(FULL_WORKBOOK)
+    sheet_dag = build_sheet_dag(WORKBOOK)
     return {"tree": tree, "pages": pages, "alias_index": aliases, "sheet_dag": sheet_dag}
 
 

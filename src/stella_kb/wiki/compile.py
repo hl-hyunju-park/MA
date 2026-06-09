@@ -43,12 +43,6 @@ from ..prompts import load as load_prompt
 PARSED_DIR = Path("data/parsed")
 OUT_DIR = Path("data/wiki/pages")
 
-# Sheets whose wiki page is **curated by another builder** (carry.py) and must not be
-# recompiled here: they're engine sheets absent from `_raw` (so load_values can't read
-# them), and their page is hand-authored. compile --all skips them; naming one explicitly
-# is a no-op with a warning.
-CURATED_SHEETS = ("성과보수, 배당금",)
-
 
 # --------------------------------------------------------------------------- helpers
 
@@ -238,7 +232,7 @@ if __name__ == "__main__":
 
     parsed_files = {p.stem: p for p in PARSED_DIR.glob("*.json")}
     if "--all" in args:
-        names = [s for s in sorted(parsed_files) if s not in CURATED_SHEETS]
+        names = sorted(parsed_files)
     else:
         names = names_arg or ["DCF 장표 #2_DTT"]
 
@@ -251,12 +245,12 @@ if __name__ == "__main__":
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     def _compile_and_write(name: str) -> str:
-        if name in CURATED_SHEETS:
-            return f"-- skipping {name!r} — curated by carry.py (not compiled here)"
         if name not in parsed_files:
             return f"!! no parsed JSON for {name!r} — run parse_llm first"
         parsed = json.loads(parsed_files[name].read_text(encoding="utf-8"))
         sheet = parsed.get("sheet", name)
+        if sheet not in whitelist:  # _raw-only: skip full-workbook sheets (e.g. carry.py's)
+            return f"-- skipping {name!r} — sheet {sheet!r} not in _raw (out of wiki scope)"
         md = compile_page(sheet, parsed, load_values(sheet), links, whitelist, use_llm)
         (OUT_DIR / f"{name}.md").write_text(md, encoding="utf-8")
         return (f"wrote {name}.md  ({len(parsed.get('line_items', []))} items, "

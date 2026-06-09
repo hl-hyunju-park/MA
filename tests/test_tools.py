@@ -68,20 +68,23 @@ def test_trace_unknown_start_is_empty():
 # --- against the real built index (skips if not generated) ----------------------------
 
 
-def test_valuation_chain_reaches_ev(index):
-    """성과보수 flows through the engine sheets to the DCF EV exhibit — the project thesis."""
-    chain = {c["sheet"]: c for c in trace_links(index, "성과보수, 배당금", "down")}
-    assert "Operating Revenue" in chain          # engine intermediary (no page)
-    assert chain["DCF 장표 #1_MGT"]["has_page"]   # reachable EV exhibit, openable
-    assert not chain["Operating Revenue"]["has_page"]
+def test_trace_real_index_is_raw_only(index):
+    """The provenance DAG is built from `_raw`, so a real trace stays within `_raw` sheets.
+
+    (Tracing the carry → engine → DCF EV valuation chain is the *graph* paradigm's job — it
+    needs the full workbook the wiki deliberately excludes.)
+    """
+    chain = {c["sheet"]: c for c in trace_links(index, "제2호_거래내역", "down")}
+    assert chain["제2호_비용"]["has_page"]        # ledger → cost: both `_raw` pages, openable
+    assert "성과보수, 배당금" not in chain         # carry sheet is out of the `_raw` wiki
 
 
 # --- lookup / open_page ---------------------------------------------------------------
 
 
 def test_lookup_resolves_known_term(index):
-    out = lookup(index, "성과보수")
-    assert "성과보수, 배당금" in out and "hit" in out
+    out = lookup(index, "관리보수")
+    assert "제2호_관리보수" in out and "hit" in out
 
 
 def test_lookup_miss_is_graceful(index):
@@ -99,5 +102,5 @@ def test_open_missing_page_guides_back():
 
 def test_open_page_trims_aliases_frontmatter():
     # the aliases: line is dropped to save context, sheet/section kept
-    out = open_page("성과보수, 배당금")
+    out = open_page("제2호_관리보수")
     assert "aliases:" not in out and "sheet:" in out
