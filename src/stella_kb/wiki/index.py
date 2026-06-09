@@ -203,11 +203,6 @@ def build_index() -> dict:
 
         axis = data.get("year_axis") or {}
         vals = all_vals.get(sheet, {})
-        key_terms: list[str] = []
-        for it in items:
-            t = it.get("label_ko") or it.get("label")
-            if t and t not in key_terms:
-                key_terms.append(t)
 
         link = links.get(sheet, {})
         entry = {
@@ -223,7 +218,6 @@ def build_index() -> dict:
             "data_status": _data_status(items, vals, axis.get("columns") or {}),
             "n_items": len(items),
             "has_page": sheet in pages_on_disk,
-            "key_terms": key_terms[:6],
             "aliases": page_aliases,
             "items": [
                 {
@@ -274,8 +268,6 @@ def render_md(index: dict) -> str:
                 if e.get("desc"):
                     out.append(f"  - {e['desc']}")
                 out.append(f"  - {' · '.join(m for m in meta if m)}")
-                if e["key_terms"]:
-                    out.append(f"  - terms: {', '.join(e['key_terms'])}")
                 rel = []
                 if e["depends_on"]:
                     rel.append("← " + ", ".join(f"[[{d}]]" for d in e["depends_on"][:4]))
