@@ -22,6 +22,7 @@ import networkx as nx
 import openpyxl
 
 from .extract import DependencyGraph, build_dependency_graph
+from .ids import nid, sheet_of
 from .metrics import attach_metrics
 
 
@@ -106,11 +107,11 @@ def build_cell_graph(dg: DependencyGraph) -> nx.DiGraph:
     their own (pure inputs) still appear as nodes via the edge endpoints."""
     g = nx.DiGraph()
     for cid, info in dg.cells.items():
-        g.add_node(cid, type="Cell", sheet=cid.split("!", 1)[0],
+        g.add_node(cid, type="Cell", sheet=sheet_of(cid),
                    formula=info.formula, value=info.value)
     for prec, dep in dg.edges:
         if prec not in g:
-            g.add_node(prec, type="Cell", sheet=prec.split("!", 1)[0])  # input cell
+            g.add_node(prec, type="Cell", sheet=sheet_of(prec))  # input cell
         g.add_edge(prec, dep, type="DEPENDS_ON")
     return g
 
@@ -128,27 +129,27 @@ def build_semantic_graph(path: str, dg: DependencyGraph | None = None,
     classes = classify_sheets(path)
 
     g = nx.DiGraph()
-    # structural nodes + PART_OF / BELONGS_TO / DEFINED_IN(sheet->fund/entity)
+
+    def link(sheet_id: str, node_type: str, name: str, rel: str) -> None:
+        """Connect a sheet to a Section/Fund/Entity node, creating the target if new."""
+        target = nid(node_type, name)
+        if target not in g:
+            g.add_node(target, type=node_type)
+        g.add_edge(sheet_id, target, type=rel)
+
+    # structural nodes + PART_OF / BELONGS_TO edges
     for sheet, sc in classes.items():
-        g.add_node(f"Sheet:{sheet}", type="Sheet", kind=sc.kind, section=sc.section)
-        sec_id = f"Section:{sc.section}"
-        if sec_id not in g:
-            g.add_node(sec_id, type="Section")
-        g.add_edge(f"Sheet:{sheet}", sec_id, type="PART_OF")
+        sid = nid("Sheet", sheet)
+        g.add_node(sid, type="Sheet", kind=sc.kind, section=sc.section)
+        link(sid, "Section", sc.section, "PART_OF")
         if sc.fund:
-            fid = f"Fund:{sc.fund}"
-            if fid not in g:
-                g.add_node(fid, type="Fund")
-            g.add_edge(f"Sheet:{sheet}", fid, type="BELONGS_TO")
+            link(sid, "Fund", sc.fund, "BELONGS_TO")
         if sc.entity:
-            eid = f"Entity:{sc.entity}"
-            if eid not in g:
-                g.add_node(eid, type="Entity")
-            g.add_edge(f"Sheet:{sheet}", eid, type="BELONGS_TO")
+            link(sid, "Entity", sc.entity, "BELONGS_TO")
 
     # aggregate cell dependencies into weighted sheet->sheet DEPENDS_ON edges
     for prec, dep in dg.edges:
-        ps, ds = f"Sheet:{prec.split('!', 1)[0]}", f"Sheet:{dep.split('!', 1)[0]}"
+        ps, ds = nid("Sheet", sheet_of(prec)), nid("Sheet", sheet_of(dep))
         if ps == ds or ps not in g or ds not in g:
             continue  # drop intra-sheet edges and refs to divider/unknown sheets
         if g.has_edge(ps, ds):

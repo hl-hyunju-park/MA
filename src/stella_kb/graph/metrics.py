@@ -21,11 +21,14 @@ Edges emitted: ``DEFINED_IN`` (Metric -> Cell and Metric -> Sheet), ``HAS_VALUE`
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import networkx as nx
 import openpyxl
 from openpyxl.utils import get_column_letter
+
+from .ids import cell_id, name_of, nid
 
 
 # --- metric registry (the closed vocabulary) ------------------------------------------
@@ -253,10 +256,31 @@ def fiscal_year_axis(ws) -> dict[str, object]:
 
 
 def _period_id(year: object) -> str:
-    return f"Period:{year}"
+    return nid("Period", year)
 
 
 # --- graph construction ---------------------------------------------------------------
+
+def _cell_node(g: nx.DiGraph, sheet: str, ref: str) -> str:
+    """Add (idempotently) the ``Sheet!REF`` Cell node and return its id."""
+    cid = cell_id(sheet, ref)
+    g.add_node(cid, type="Cell", sheet=sheet)
+    return cid
+
+
+def _define_in(g: nx.DiGraph, mid: str, sheet: str, ref: str) -> str:
+    """Pin metric ``mid`` to cell ``sheet!ref`` via DEFINED_IN; return the cell id."""
+    cid = _cell_node(g, sheet, ref)
+    g.add_edge(mid, cid, type="DEFINED_IN")
+    return cid
+
+
+def _value_at(g: nx.DiGraph, mid: str, sheet: str, ref: str, pid: str, value) -> str:
+    """Record one period's value: Cell node + HAS_VALUE(period, on-edge value+cell) + DEFINED_IN."""
+    cid = _cell_node(g, sheet, ref)
+    g.add_edge(mid, pid, type="HAS_VALUE", value=value, cell=cid)
+    g.add_edge(mid, cid, type="DEFINED_IN")
+    return cid
 
 def attach_metrics(g: nx.DiGraph, path: str) -> nx.DiGraph:
     """Add Metric/Period nodes and their edges onto an existing semantic graph ``g``."""
@@ -270,41 +294,33 @@ def attach_metrics(g: nx.DiGraph, path: str) -> nx.DiGraph:
         return pid
 
     for m in METRICS:
-        mid = f"Metric:{m.id}"
+        mid = nid("Metric", m.id)
         g.add_node(mid, type="Metric", label=m.label_en, label_ko=m.label_ko,
                    category=m.category, sheet=m.sheet, case=m.case, aliases=m.aliases)
         # tie the metric to its sheet node if the semantic graph has one
-        sheet_node = f"Sheet:{m.sheet}"
+        sheet_node = nid("Sheet", m.sheet)
         if sheet_node in g:
             g.add_edge(mid, sheet_node, type="DEFINED_IN")
 
         ws = wb[m.sheet]
         if m.kind == "scalar":
-            cid = f"{m.sheet}!{m.cell}"
             val = ws[m.cell].value
             g.nodes[mid]["value"] = val
-            g.add_node(cid, type="Cell", sheet=m.sheet)
-            g.add_edge(mid, cid, type="DEFINED_IN")
+            cid = _define_in(g, mid, m.sheet, m.cell)
             if m.id in DUAL_CASE_MGT:                  # add the frozen MGT-case counterpart
                 ec = DUAL_CASE_MGT[m.id]
                 g.nodes[mid]["value_mgt"] = wb[MGT_EXHIBIT][ec].value
-                g.nodes[mid]["cell_mgt"] = f"{MGT_EXHIBIT}!{ec}"
+                g.nodes[mid]["cell_mgt"] = cell_id(MGT_EXHIBIT, ec)
             if m.period is not None:
-                pid = add_period(m.period)
-                g.add_edge(mid, pid, type="HAS_VALUE", value=val, cell=cid)
+                g.add_edge(mid, add_period(m.period), type="HAS_VALUE", value=val, cell=cid)
 
         elif m.kind == "series":
             axis = axis_cache.setdefault(m.sheet, fiscal_year_axis(ws))
             for col, year in axis.items():
-                cell = f"{col}{m.row}"
-                val = ws[cell].value
+                val = ws[f"{col}{m.row}"].value
                 if val is None:
                     continue
-                pid = add_period(year)
-                cid = f"{m.sheet}!{cell}"
-                g.add_node(cid, type="Cell", sheet=m.sheet)
-                g.add_edge(mid, pid, type="HAS_VALUE", value=val, cell=cid)
-                g.add_edge(mid, cid, type="DEFINED_IN")
+                _value_at(g, mid, m.sheet, f"{col}{m.row}", add_period(year), val)
 
         elif m.kind == "vseries":
             r0, r1 = m.row_range
@@ -314,13 +330,7 @@ def attach_metrics(g: nx.DiGraph, path: str) -> nx.DiGraph:
                     val = ws[f"{m.val_col}{r}"].value
                     if yraw is None or val is None:
                         continue
-                    year = _year_of(yraw)
-                    pid = add_period(year)
-                    cell = f"{m.val_col}{r}"
-                    cid = f"{m.sheet}!{cell}"
-                    g.add_node(cid, type="Cell", sheet=m.sheet)
-                    g.add_edge(mid, pid, type="HAS_VALUE", value=val, cell=cid)
-                    g.add_edge(mid, cid, type="DEFINED_IN")
+                    _value_at(g, mid, m.sheet, f"{m.val_col}{r}", add_period(_year_of(yraw)), val)
             else:  # headcount: a total row with years across the header above it
                 hdr = {get_column_letter(c): ws.cell(row=r0 - 32, column=c).value
                        for c in range(4, 10)}  # row 6 holds '2019년'… for the row-38 total
@@ -329,30 +339,43 @@ def attach_metrics(g: nx.DiGraph, path: str) -> nx.DiGraph:
                     yraw = hdr.get(get_column_letter(c))
                     if val is None or yraw is None:
                         continue
-                    year = _year_of(yraw)
-                    cell = f"{get_column_letter(c)}{r0}"
-                    cid = f"{m.sheet}!{cell}"
-                    pid = add_period(year)
-                    g.add_node(cid, type="Cell", sheet=m.sheet)
-                    g.add_edge(mid, pid, type="HAS_VALUE", value=val, cell=cid)
-                    g.add_edge(mid, cid, type="DEFINED_IN")
+                    ref = f"{get_column_letter(c)}{r0}"
+                    _value_at(g, mid, m.sheet, ref, add_period(_year_of(yraw)), val)
 
-    # -- per-fund management-fee anchors (관리수수료 rows 8-19) --
+    _attach_fund_fees(g, wb)
+    _attach_carry(g, wb)
+    wb.close()
+
+    # cross-metric edges, whitelist-guarded
+    for src, dst in DRIVES:
+        if src in METRIC_IDS and dst in METRIC_IDS:
+            g.add_edge(nid("Metric", src), nid("Metric", dst), type="DRIVES")
+    for src, dst in ASSUMPTION_OF:
+        if src in METRIC_IDS and dst in METRIC_IDS:
+            g.add_edge(nid("Metric", src), nid("Metric", dst), type="ASSUMPTION_OF")
+    return g
+
+
+def _attach_fund_fees(g: nx.DiGraph, wb) -> None:
+    """Per-fund management-fee anchors (`관리수수료` rows 8-19).
+
+    Each fund row yields three metrics — fee rate (P), committed capital (O), annual fee (Q) —
+    each DEFINED_IN its cell. Wired committed × rate -> this fund's fee -> the aggregate
+    ``management_fee``, and BELONGS_TO the Biz Plan ``Fund:`` node where one exists.
+    """
     fee_ws = wb["관리수수료"]
     r0, r1 = FUND_FEE_ROWS
     for r in range(r0, r1 + 1):
         name = fee_ws.cell(row=r, column=3).value          # C: fund name
-        if not name:
+        rate = fee_ws[f"P{r}"].value                       # P: 수수료% (fee rate)
+        if not name or not isinstance(rate, (int, float)):  # skip blank/기타 non-numeric rows
             continue
         committed = fee_ws[f"O{r}"].value                  # O: 출자약정금액 (committed capital)
-        rate = fee_ws[f"P{r}"].value                       # P: 수수료% (fee rate)
         annual = fee_ws[f"Q{r}"].value                     # Q: 연간 금액 (annual fee)
-        if not isinstance(rate, (int, float)):             # skip 기타/non-numeric rows
-            continue
         slug = _slug(str(name))
-        rate_id = f"Metric:fund_fee_rate:{slug}"
-        cap_id = f"Metric:fund_committed_capital:{slug}"
-        fee_id = f"Metric:fund_mgmt_fee:{slug}"
+        rate_id = nid("Metric", f"fund_fee_rate:{slug}")
+        cap_id = nid("Metric", f"fund_committed_capital:{slug}")
+        fee_id = nid("Metric", f"fund_mgmt_fee:{slug}")
         g.add_node(rate_id, type="Metric", label=f"{name} — fee rate", label_ko=str(name),
                    category="assumption", sheet="관리수수료", value=rate)
         g.add_node(cap_id, type="Metric", label=f"{name} — committed capital", label_ko=str(name),
@@ -360,67 +383,46 @@ def attach_metrics(g: nx.DiGraph, path: str) -> nx.DiGraph:
         g.add_node(fee_id, type="Metric", label=f"{name} — management fee", label_ko=str(name),
                    category="revenue", sheet="관리수수료", value=annual)
         for mid, col in ((rate_id, "P"), (cap_id, "O"), (fee_id, "Q")):
-            cid = f"관리수수료!{col}{r}"
-            g.add_node(cid, type="Cell", sheet="관리수수료")
-            g.add_edge(mid, cid, type="DEFINED_IN")
-        # committed capital × fee rate -> this fund's fee -> the aggregate management fee
+            _define_in(g, mid, "관리수수료", f"{col}{r}")
         g.add_edge(cap_id, fee_id, type="DRIVES")
         g.add_edge(rate_id, fee_id, type="ASSUMPTION_OF")
         g.add_edge(fee_id, "Metric:management_fee", type="DRIVES")
         fund_node = FUND_NODE_MAP.get(str(name).strip())
-        if fund_node and f"Fund:{fund_node}" in g:
+        if fund_node and nid("Fund", fund_node) in g:
             for mid in (rate_id, cap_id, fee_id):
-                g.add_edge(mid, f"Fund:{fund_node}", type="BELONGS_TO")
-
-    _attach_carry(g, wb)
-    wb.close()
-
-    # cross-metric edges, whitelist-guarded
-    for src, dst in DRIVES:
-        if src in METRIC_IDS and dst in METRIC_IDS:
-            g.add_edge(f"Metric:{src}", f"Metric:{dst}", type="DRIVES")
-    for src, dst in ASSUMPTION_OF:
-        if src in METRIC_IDS and dst in METRIC_IDS:
-            g.add_edge(f"Metric:{src}", f"Metric:{dst}", type="ASSUMPTION_OF")
-    return g
+                g.add_edge(mid, nid("Fund", fund_node), type="BELONGS_TO")
 
 
 def _attach_carry(g: nx.DiGraph, wb) -> None:
     """Per-fund GP carry & distribution from the `성과보수, 배당금` engine sheet.
 
-    Mirrors the per-fund management-fee block: each fund gets a `fund_carry` metric (DTT on
-    the node, MGT on ``value_mgt``) that DRIVES the aggregate ``performance_fee``, plus a
-    `fund_distribution` metric and the three Exit assumptions (EBITDA, multiple, hurdle) that
-    are ASSUMPTION_OF its carry. Every value is pinned to an exact cell via DEFINED_IN, and
-    each metric BELONGS_TO its Biz Plan ``Fund:`` node.
+    Mirrors `_attach_fund_fees`: each fund gets a `fund_carry` metric (DTT on the node, MGT on
+    ``value_mgt``) that DRIVES the aggregate ``performance_fee``, plus a `fund_distribution`
+    metric and the three Exit assumptions (EBITDA, multiple, hurdle) that are ASSUMPTION_OF its
+    carry. Every value is pinned to an exact cell via DEFINED_IN, and each metric BELONGS_TO
+    its Biz Plan ``Fund:`` node.
     """
     ws = wb[CARRY_SHEET]
-
-    def cell(ref: str) -> str:
-        cid = f"{CARRY_SHEET}!{ref}"
-        g.add_node(cid, type="Cell", sheet=CARRY_SHEET)
-        return cid
-
     for f in CARRY_FUNDS:
         slug, v = _slug(f["alias"]), f["val"]
-        fund_node = f"Fund:{f['node']}"
+        fund_node = nid("Fund", f["node"])
 
-        carry_id = f"Metric:fund_carry:{slug}"
+        carry_id = nid("Metric", f"fund_carry:{slug}")
         g.add_node(carry_id, type="Metric", label=f"{f['alias']} — GP carry", label_ko="성과보수",
                    category="revenue", sheet=CARRY_SHEET, case="DTT",
                    value=ws[f"{v}6"].value, value_mgt=ws[f"{v}4"].value,
                    aliases=["성과보수", "carry", "carried interest", "performance fee", f["alias"]])
-        g.add_edge(carry_id, cell(f"{v}6"), type="DEFINED_IN")     # DTT (active)
-        g.add_edge(carry_id, cell(f"{v}4"), type="DEFINED_IN")     # MGT
+        _define_in(g, carry_id, CARRY_SHEET, f"{v}6")     # DTT (active)
+        _define_in(g, carry_id, CARRY_SHEET, f"{v}4")     # MGT
         g.add_edge(carry_id, "Metric:performance_fee", type="DRIVES")
 
-        dist_id = f"Metric:fund_distribution:{slug}"
+        dist_id = nid("Metric", f"fund_distribution:{slug}")
         g.add_node(dist_id, type="Metric", label=f"{f['alias']} — distribution to GP",
                    label_ko="재산분배액", category="revenue", sheet=CARRY_SHEET, case="DTT",
                    value=ws[f"{v}9"].value, value_mgt=ws[f"{v}7"].value,
                    aliases=["재산분배액", "distribution", f["alias"]])
-        g.add_edge(dist_id, cell(f"{v}9"), type="DEFINED_IN")
-        g.add_edge(dist_id, cell(f"{v}7"), type="DEFINED_IN")
+        _define_in(g, dist_id, CARRY_SHEET, f"{v}9")
+        _define_in(g, dist_id, CARRY_SHEET, f"{v}7")
 
         # Exit assumptions (MGT-case row 5) that drive the carry computation.
         for suffix, ref, label_en, label_ko in (
@@ -428,10 +430,10 @@ def _attach_carry(g: nx.DiGraph, wb) -> None:
             ("exit_multiple", f["mult"], "Exit multiple", "Exit Multiple"),
             ("hurdle", f["hurdle"], "Hurdle rate", "기준수익률"),
         ):
-            aid = f"Metric:fund_{suffix}:{slug}"
+            aid = nid("Metric", f"fund_{suffix}:{slug}")
             g.add_node(aid, type="Metric", label=f"{f['alias']} — {label_en}", label_ko=label_ko,
                        category="assumption", sheet=CARRY_SHEET, value=ws[ref].value)
-            g.add_edge(aid, cell(ref), type="DEFINED_IN")
+            _define_in(g, aid, CARRY_SHEET, ref)
             g.add_edge(aid, carry_id, type="ASSUMPTION_OF")
             if fund_node in g:
                 g.add_edge(aid, fund_node, type="BELONGS_TO")
@@ -443,7 +445,6 @@ def _attach_carry(g: nx.DiGraph, wb) -> None:
 
 def _year_of(raw: object) -> int | str:
     """Pull a 4-digit year out of values like 2024, '2024E', '2024년 8월'."""
-    import re
     m = re.search(r"(19|20)\d{2}", str(raw))
     return int(m.group(0)) if m else str(raw)
 
@@ -465,15 +466,15 @@ if __name__ == "__main__":
     print("\nscalar valuation/assumption metrics:")
     for n, d in g.nodes(data=True):
         if d.get("type") == "Metric" and d.get("category") in ("valuation", "assumption"):
-            print(f"  {d['label']:32s} = {d.get('value')!r}  ({n.split(':',1)[1]})")
+            print(f"  {d['label']:32s} = {d.get('value')!r}  ({name_of(n)})")
     print("\nEquity Value provenance chain (what DRIVES it):")
     ev = "Metric:equity_value"
     for u, v, d in g.in_edges(ev, data=True):
-        print(f"  {u.split(':',1)[1]} --{d['type']}--> equity_value")
+        print(f"  {name_of(u)} --{d['type']}--> equity_value")
     print("\nmanagement_fee HAS_VALUE by period:")
     for u, v, d in g.out_edges("Metric:management_fee", data=True):
         if d["type"] == "HAS_VALUE":
-            print(f"  {v.split(':',1)[1]}: {d['value']:.1f}  [{d['cell']}]")
+            print(f"  {name_of(v)}: {d['value']:.1f}  [{d['cell']}]")
 
     print("\nper-fund carry (DTT on node, MGT alt) -> performance_fee:")
     for n, d in g.nodes(data=True):

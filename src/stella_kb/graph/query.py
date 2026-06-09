@@ -18,6 +18,7 @@ import networkx as nx
 from .. import DATA_DIR
 from .. import llm
 from ..prompts import load as load_prompt
+from .ids import name_of
 
 GRAPH_PATH = str(DATA_DIR / "stella_graph.json")
 
@@ -33,7 +34,7 @@ def load_graph(path: str = GRAPH_PATH) -> nx.DiGraph:
 # --- deterministic retrieval -----------------------------------------------------------
 
 def _label(g: nx.DiGraph, n: str) -> str:
-    return g.nodes[n].get("label", n.split(":", 1)[-1])
+    return g.nodes[n].get("label", name_of(n))
 
 
 def series(g: nx.DiGraph, mid: str) -> list[tuple]:
@@ -46,7 +47,7 @@ def series(g: nx.DiGraph, mid: str) -> list[tuple]:
 
 
 def source_cells(g: nx.DiGraph, mid: str) -> list[str]:
-    return [v.split(":", 1)[-1] if v.startswith("Sheet:") else v
+    return [name_of(v) if v.startswith("Sheet:") else v
             for _, v, d in g.out_edges(mid, data=True)
             if d.get("type") == "DEFINED_IN"]
 
@@ -72,7 +73,7 @@ def drivers(g: nx.DiGraph, mid: str, max_depth: int = 6) -> list[tuple]:
 def evidence(g: nx.DiGraph, mid: str) -> str:
     """A compact, grounded evidence block for one metric — the only thing the LLM sees."""
     n = g.nodes[mid]
-    lines = [f"Metric: {n.get('label')} (id={mid.split(':',1)[-1]}, category={n.get('category')}"
+    lines = [f"Metric: {n.get('label')} (id={name_of(mid)}, category={n.get('category')}"
              + (f", case={n.get('case')}" if n.get("case") else "") + ")"]
     if n.get("label_ko"):
         lines.append(f"Korean label: {n['label_ko']}")

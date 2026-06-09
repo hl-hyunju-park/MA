@@ -42,6 +42,25 @@ def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 512,
     return data["choices"][0]["message"]["content"]
 
 
+def _json_span(raw: str, open_ch: str, close_ch: str):
+    """Pull the first JSON value delimited by ``open_ch``..``close_ch`` out of a model reply.
+
+    Tolerates ```json fences and surrounding chatter (the model sometimes wraps or prefaces
+    its answer). Returns the parsed object, or ``None`` if nothing parseable is found — the
+    one place both resolvers share their messy-output handling.
+    """
+    s = raw.strip()
+    if "```" in s:                       # strip ```json fences if the model adds them
+        s = s.split("```")[1].lstrip("json").strip() if s.count("```") >= 2 else s.strip("`")
+    start, end = s.find(open_ch), s.rfind(close_ch)
+    if start < 0 or end < start:
+        return None
+    try:
+        return json.loads(s[start:end + 1])
+    except (ValueError, json.JSONDecodeError):
+        return None
+
+
 def _catalog() -> str:
     """Closed-vocabulary catalog handed to the model: id + EN/KO labels + aliases."""
     lines = []
@@ -62,13 +81,8 @@ def resolve_metric(term: str, timeout: float = 60.0) -> dict:
     user = f"Catalog:\n{_catalog()}\n\nTerm: {term!r}\nJSON:"
     raw = chat([{"role": "system", "content": sys}, {"role": "user", "content": user}],
                max_tokens=80, timeout=timeout)
-    s = raw.strip()
-    if "```" in s:                       # strip ```json fences if the model adds them
-        s = s.split("```")[1].lstrip("json").strip() if s.count("```") >= 2 else s.strip("`")
-    start, end = s.find("{"), s.rfind("}")
-    try:
-        obj = json.loads(s[start:end + 1])
-    except (ValueError, json.JSONDecodeError):
+    obj = _json_span(raw, "{", "}")
+    if not isinstance(obj, dict):
         return {"id": None, "confidence": 0.0, "raw": raw}
     if obj.get("id") not in METRIC_IDS:  # guard: reject anything off-whitelist
         obj["id"] = None
@@ -88,13 +102,8 @@ def resolve_metrics(question: str, max_metrics: int = 4, timeout: float = 60.0) 
     user = f"Catalog:\n{_catalog()}\n\nQuestion: {question!r}\nJSON array:"
     raw = chat([{"role": "system", "content": sys}, {"role": "user", "content": user}],
                max_tokens=120, timeout=timeout)
-    s = raw.strip()
-    if "```" in s:                       # strip ```json fences if present
-        s = s.split("```")[1].lstrip("json").strip() if s.count("```") >= 2 else s.strip("`")
-    start, end = s.find("["), s.rfind("]")
-    try:
-        arr = json.loads(s[start:end + 1])
-    except (ValueError, json.JSONDecodeError):
+    arr = _json_span(raw, "[", "]")
+    if not isinstance(arr, list):
         return []
     out: list[str] = []
     for x in arr:
