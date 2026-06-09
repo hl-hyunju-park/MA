@@ -60,6 +60,45 @@ def _fmt(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ").strip()
 
 
+# --- currency / unit -------------------------------------------------------------------
+
+# The parsed unit string varies per sheet for the same meaning (원 / KRW / KRWm / KRWmn /
+# 백만원 / Mixed / KRW/USD). Collapse the equivalents to one unambiguous token so every page
+# states currency identically — but keep the won-vs-millions distinction (a 10^6 gap that
+# would silently corrupt any valuation number read off the page).
+_UNIT_GLOSS = {
+    "KRW": "원 (KRW)",
+    "KRWm": "백만원 (KRW millions)",
+    "KRW·USD": "원·달러 혼용 (KRW & USD)",
+    "Mixed": "혼합 단위 (mixed: %, 인구수, $ 등)",
+}
+
+
+def canon_unit(raw: object) -> str:
+    """Collapse a parsed unit string to a canonical currency/scale token (or '' if absent)."""
+    if not raw:
+        return ""
+    s = str(raw).strip()
+    low = s.casefold().replace(" ", "")
+    if "백만" in s or low in {"krwm", "krwmn", "krwmm", "krwmil", "krwmillion"}:
+        return "KRWm"
+    if "usd" in low and ("krw" in low or "원" in s):
+        return "KRW·USD"
+    if low in {"krw", "won", "원"}:
+        return "KRW"
+    if low == "mixed" or "혼합" in s:
+        return "Mixed"
+    return s  # unknown unit — pass through unchanged rather than guess
+
+
+def unit_display(raw: object) -> str:
+    """Human, bilingual currency/unit string for the page callout."""
+    c = canon_unit(raw)
+    if not c:
+        return "단위 미상 (unit not stated in source)"
+    return _UNIT_GLOSS.get(c, c)
+
+
 def load_values(sheet: str) -> dict[str, object]:
     """``{coordinate: cached value}`` for one sheet (ground truth for the facts table)."""
     wb = openpyxl.load_workbook(WORKBOOK, data_only=True, read_only=True)
@@ -197,17 +236,20 @@ def compile_page(sheet: str, parsed: dict, vals: dict,
     out.append(f"section: {meta.get('title') or ''}")
     if meta.get("case"):
         out.append(f"case: {meta['case']}")
-    out.append(f"unit: {meta.get('unit') or ''}")
+    out.append(f"unit: {canon_unit(meta.get('unit'))}")
     if aliases:
         out.append("aliases: [" + ", ".join(aliases) + "]")
-    out += ["---", "", f"# {meta.get('title') or sheet}", ""]
+    out += ["---", "", f"# {meta.get('title') or sheet}", "",
+            f"> **통화·단위 (Currency / Unit): {unit_display(meta.get('unit'))}** — "
+            "이 페이지의 모든 금액 수치에 적용됩니다.", ""]
 
     out += ["## What this is", ""]
     out.append(_prose(sheet, meta, facts_lines) if use_llm
                else "_(scaffold only — run without --no-llm for prose)_")
     out.append("")
 
-    out += ["## Line items", ""]
+    _u = canon_unit(meta.get("unit"))
+    out += [f"## Line items — 단위/unit: {_u or 'n/a'}", ""]
     header = "| Item | KO | role | cell |" + ("".join(f" {p} |" for p in periods)
                                               if periods else " values |")
     sep = "|---|---|---|---|" + ("---|" * len(periods) if periods else "---|")
