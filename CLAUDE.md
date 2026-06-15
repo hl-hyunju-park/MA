@@ -246,18 +246,21 @@ synonyms. Close it with the **cheapest auditable thing first**:
 Rule of thumb: vectors (if used at all) map *words → nodes*; the graph maps *nodes →
 answers*. Keep evidence retrieval on the graph.
 
-## Local LLM endpoint (shared)
+## Local LLM endpoint
 
-`src/stella_kb/llm.py` is a stdlib-only OpenAI-compatible client. Defaults point at a
-**shared local vLLM server** (override with env `STELLA_LLM_URL` / `STELLA_LLM_MODEL`):
+`src/stella_kb/llm.py` is a stdlib-only OpenAI-compatible client. Defaults point at our
+**own gemma-4 vLLM on `:8001`** (override with env `STELLA_LLM_URL` / `STELLA_LLM_MODEL`):
 
-- URL `http://localhost:33333/v1` (the server runs on this host — use localhost)
-- Model `gemma-4-31B-it` (Gemma instruct, TP=2 on GPUs 6–7, 262k ctx)
-- Served by another user (`donghan906`'s `Coinv`) — **guest resource**: keep load light, don't
-  assume uptime. Sanity-check: `curl -s localhost:33333/v1/models`.
+- URL `http://123.37.5.219:8001/v1`
+- Model `gemma-4-31B-it` (Gemma instruct, TP=2, 262k ctx) — launched by
+  `scripts/serve_gemma.sh` with `--enable-auto-tool-choice --tool-call-parser gemma4`.
+- **One endpoint for everything**: the wiki build/agent (this client) *and* the DART
+  tool-calling agent both use `123.37.5.219:8001`. (The old guest vLLM on `:33333`, served
+  by another user, is no longer used — `:8001` is ours, so tool-calling works and uptime is
+  ours.) Sanity-check: `curl -s 123.37.5.219:8001/v1/models`.
 - The agent fans out independent sub-questions (LangGraph `Send`) and per-page retrieval
-  concurrently; a semaphore caps in-flight requests to this server at `STELLA_FANOUT`
-  (default 4) so the guest vLLM isn't overloaded. vLLM continuous-batches what lands at once.
+  concurrently; a semaphore caps in-flight requests at `STELLA_FANOUT` (default 4). vLLM
+  continuous-batches what lands at once.
 
 Use the LLM only for *words → nodes* (`resolve_metric`, whitelist-guarded against
 `METRIC_IDS`) and final NL synthesis — never to fetch evidence (that stays graph traversal).

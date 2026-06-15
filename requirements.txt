@@ -2,6 +2,15 @@ openpyxl>=3.1
 pandas>=2.0
 networkx>=3.0
 langgraph>=1.0      # agent/wiki_agent.py: StateGraph orchestration for the query agent
+langchain>=1.0      # apps/agent/dart_agent.py: create_agent (native tool-calling loop)
+langchain-openai>=1.0      # ChatOpenAI client for the tool-calling LLM (gemma-4 on :8001)
+langchain-mcp-adapters>=0.2  # load DART MCP tools (over SSE) as LangChain tools
+python-dotenv>=1.0  # apps/agent/dart_agent.py + mcps/dart-mcp/dart.py: load .env (DART_MCP_TOKEN)
+opendataloader-pdf  # wiki/pdf_pages.py: PDF report -> markdown (pipeline stage 5; needs Java 11+)
 fastapi>=0.115      # agent/server.py: HTTP API over the agent
 uvicorn[standard]>=0.30  # ASGI server for agent/server.py
 pytest>=8.0         # tests/ — deterministic suite by default; live-LLM tests opt-in (--run-llm)
+
+# PDF parsing (src/stella_kb/parsers/pdf/): vision-describe via gemma + text/table extraction
+PyMuPDF>=1.24      # fitz: page render + text/layout signals
+pdfplumber>=0.11   # table extraction for reference text

@@ -26,6 +26,7 @@ class AgentState(TypedDict, total=False):
     sub_idx: int           # Send payload: that sub-question's index (for trace grouping)
     evidence: Annotated[list, operator.add]  # accumulated [{page, cell, term, value, ask}]
     paths: Annotated[list, operator.add]     # provenance chains [{ask, direction, chain:[...]}]
+    caveats: list          # auditor's cross-evidence red flags (single write, post-merge)
     answer: str            # the synthesizer's final Korean answer
     trace: Annotated[list, operator.add]     # per-turn record [{step, sub, agent, action, arg, thought}]
     steps: Annotated[int, operator.add]      # retriever reads consumed across branches (work done)

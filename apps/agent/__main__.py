@@ -1,27 +1,37 @@
-"""CLI: ``python -m apps.agent "<question>"`` — demo the wiki agent, printing the routing trace.
+"""CLI: ``python -m apps.agent "<question>"`` — demo the agent, printing the routing trace.
 
-With no arguments, runs a few sample questions. Needs ``data/wiki/`` built and the local
-vLLM up (see ``src/stella_kb/llm.py``).
+Routes each question to the wiki (Centroid) or DART (public company) backend automatically;
+force one with ``--source wiki|dart|auto``. With no question, runs a few samples (one DART).
+Needs ``data/wiki/`` built and the local vLLM up (see ``src/stella_kb/llm.py``); DART questions
+also need the tool LLM (:8001) + the DART MCP server (see ``apps/agent/dart_agent.py``).
 """
 
 from __future__ import annotations
 
 import sys
 
-from .core import run
+from .core import answer
 
 
 def main(argv: list[str]) -> None:
+    source = "auto"
+    if "--source" in argv:
+        i = argv.index("--source")
+        source = argv[i + 1] if i + 1 < len(argv) else "auto"
+        argv = argv[:i] + argv[i + 2:]
+
     questions = argv or [
-        "제5호 펀드의 2024년 총 운영비용은 얼마인가요?",
         "기업가치(Enterprise Value)는 얼마이고 어느 셀에서 오나요?",
         "관리수수료(operating revenue)는 어느 장표에 있나요?",
+        "삼성전자 공시 알려줘",  # routes to DART
     ]
     for q in questions:
         print("=" * 78)
         print("Q:", q)
         print("-" * 78)
-        print(run(q, verbose=True)["answer"])
+        out = answer(q, source=source, verbose=True)
+        print(f"[backend: {out['source']}]")
+        print(out["answer"])
         print()
 
 

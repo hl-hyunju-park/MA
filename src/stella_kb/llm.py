@@ -2,13 +2,14 @@
 retrieval strategy actually sanctions: **words -> nodes** (resolve a KO/EN query term to a
 Metric id), never evidence retrieval — see CLAUDE.md "Retrieval strategy".
 
-Config via env (defaults point at the shared local vLLM server):
-    STELLA_LLM_URL    base URL, default http://localhost:33333/v1
+Config via env (defaults point at the gemma-4 vLLM on :8001 — the same server the DART
+tool agent uses; see scripts/serve_gemma.sh):
+    STELLA_LLM_URL    base URL, default http://123.37.5.219:8001/v1
     STELLA_LLM_MODEL  served model name, default gemma-4-31B-it
 
-The server runs on this host, so use ``localhost``. Stdlib only (urllib) — no new
-dependency. The endpoint is OpenAI-compatible, so swapping in a hosted API is just two
-env vars.
+The server runs on another box (123.37.5.219), so the default points at that host, not
+``localhost``. Stdlib only (urllib) — no new dependency. The endpoint is OpenAI-compatible,
+so swapping in a hosted API is just two env vars.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ import urllib.request
 from .graph.metrics import METRICS, METRIC_IDS
 from .prompts import load as load_prompt
 
-BASE_URL = os.environ.get("STELLA_LLM_URL", "http://localhost:33333/v1")
+BASE_URL = os.environ.get("STELLA_LLM_URL", "http://123.37.5.219:8001/v1")
 MODEL = os.environ.get("STELLA_LLM_MODEL", "gemma-4-31B-it")
 
 

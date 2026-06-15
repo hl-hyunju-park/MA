@@ -11,7 +11,7 @@
   header { padding: 14px 18px; border-bottom: 1px solid #e6e1f5; }
   header h1 { margin: 0 0 4px; font-size: 18px; }
   header p { margin: 0; color: #666; font-size: 13px; }
-  #cy { width: 100vw; height: calc(100vh - 132px); }
+  #cy { width: 100vw; height: calc(100vh - 150px); }
   #legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 18px; border-top: 1px solid #e6e1f5;
             background: #fff; font-size: 12px; align-items: center; }
   .chip { display: inline-flex; align-items: center; gap: 6px; }
@@ -21,32 +21,36 @@
 </head>
 <body>
 <header>
-  <h1>Project Stella — query agent graph</h1>
-  <p>planner → <b>fan-out</b> (one <code>solve</code> branch per sub-question, ≤4 concurrent) → synthesizer.
-     Drag nodes to rearrange. Dotted = <code>Send</code> dispatch / retry loop.</p>
+  <h1>Project Stella — query agent (full architecture)</h1>
+  <p><code>answer()</code> → <b>route</b> (LLM) → <b>wiki</b> backend (planner → fan-out
+     <code>solve</code> → synthesizer) <b>or</b> <b>dart</b> backend (tool-calling loop over the DART MCP).
+     Drag nodes. Dotted = <code>Send</code> / retry / MCP tool call.</p>
 </header>
 <div id="cy"></div>
 <div id="legend">
+  <span class="chip"><span class="dot" style="background:#6b7280"></span>route</span>
   <span class="chip"><span class="dot" style="background:#8b5cf6"></span>planner</span>
   <span class="chip"><span class="dot" style="background:#3b82f6"></span>router</span>
   <span class="chip"><span class="dot" style="background:#10b981"></span>retriever</span>
   <span class="chip"><span class="dot" style="background:#ef4444"></span>verifier</span>
   <span class="chip"><span class="dot" style="background:#f59e0b"></span>synthesizer</span>
-  <span class="chip muted">— solid: control flow · ┄ dotted: Send / retry</span>
-  <span class="chip muted">branches merge via operator.add channels (evidence · paths · trace · steps)</span>
+  <span class="chip"><span class="dot" style="background:#0ea5e9"></span>dart agent</span>
+  <span class="chip muted">— solid: control flow · ┄ dotted: Send / retry / MCP</span>
+  <span class="chip muted">wiki branches merge via operator.add (evidence · paths · trace · steps)</span>
 </div>
 <script>
-const COLOR = { start:'#9ca3af', planner:'#8b5cf6', router:'#3b82f6', retriever:'#10b981',
-                verifier:'#ef4444', synthesizer:'#f59e0b', end:'#9ca3af' };
+const COLOR = { start:'#9ca3af', route:'#6b7280', planner:'#8b5cf6', router:'#3b82f6',
+                retriever:'#10b981', verifier:'#ef4444', synthesizer:'#f59e0b',
+                dart:'#0ea5e9', tool:'#0284c7', end:'#9ca3af' };
 
-// One representative fan-out with two branches (the planner emits N; runtime caps at 4).
+// One representative wiki fan-out with two branches (the planner emits N; runtime caps at 4).
 function branch(i, x) {
   const s = `b${i}`;
   return {
     nodes: [
-      { data:{ id:`${s}_router`, label:`router\n(sub-Q ${i})`, role:'router' }, position:{x, y:210} },
-      { data:{ id:`${s}_retr`, label:'retriever\n1 LLM / page', role:'retriever' }, position:{x, y:310} },
-      { data:{ id:`${s}_ver`, label:'verifier', role:'verifier' }, position:{x, y:410} },
+      { data:{ id:`${s}_router`, label:`router\n(sub-Q ${i})`, role:'router' }, position:{x, y:330} },
+      { data:{ id:`${s}_retr`, label:'retriever\n1 LLM / page', role:'retriever' }, position:{x, y:420} },
+      { data:{ id:`${s}_ver`, label:'verifier', role:'verifier' }, position:{x, y:510} },
     ],
     edges: [
       { data:{ source:`${s}_router`, target:`${s}_retr` } },
@@ -58,23 +62,39 @@ function branch(i, x) {
   };
 }
 
-const b0 = branch(0, 230), b1 = branch(1, 570);
+const b0 = branch(0, 150), b1 = branch(1, 430);
 const elements = [
-  { data:{ id:'start', label:'START', role:'start' }, position:{x:400, y:30} },
-  { data:{ id:'planner', label:'planner\nsplit → sub-Qs', role:'planner' }, position:{x:400, y:110} },
+  // top router tier
+  { data:{ id:'start', label:'question', role:'start' }, position:{x:430, y:30} },
+  { data:{ id:'route', label:'route\nLLM classify', role:'route' }, position:{x:430, y:110} },
+
+  // wiki backend
+  { data:{ id:'planner', label:'planner\nsplit → sub-Qs', role:'planner' }, position:{x:290, y:230} },
   ...b0.nodes, ...b1.nodes,
-  { data:{ id:'synth', label:'synthesizer\njoin → cited answer', role:'synthesizer' }, position:{x:400, y:510} },
-  { data:{ id:'end', label:'END', role:'end' }, position:{x:400, y:590} },
-  { data:{ source:'start', target:'planner' } },
+  { data:{ id:'synth', label:'synthesizer\njoin → cited answer', role:'synthesizer' }, position:{x:290, y:600} },
+
+  // dart backend
+  { data:{ id:'dart', label:'dart agent\ncreate_agent loop', role:'dart' }, position:{x:760, y:330} },
+  { data:{ id:'darttools', label:'DART MCP tools\nSSE :8002', role:'tool' }, position:{x:760, y:460} },
+
+  { data:{ id:'end', label:'answer + trace', role:'end' }, position:{x:430, y:700} },
+
+  // edges
+  { data:{ source:'start', target:'route' } },
+  { data:{ source:'route', target:'planner', label:'wiki (default)' } },
+  { data:{ source:'route', target:'dart', label:'dart' } },
   ...b0.edges, ...b1.edges,
   { data:{ source:'synth', target:'end' } },
+  { data:{ source:'dart', target:'darttools', label:'MCP / SSE', kind:'dotted' } },
+  { data:{ source:'darttools', target:'dart', label:'result', kind:'dotted' } },
+  { data:{ source:'dart', target:'end' } },
 ];
 
 cytoscape({
   container: document.getElementById('cy'),
   elements,
   layout: { name:'preset' },
-  minZoom: 0.4, maxZoom: 2.5,
+  minZoom: 0.3, maxZoom: 2.5,
   style: [
     { selector:'node', style:{
         'background-color': e => COLOR[e.data('role')] || '#888',
@@ -82,8 +102,10 @@ cytoscape({
         'color':'#fff', 'font-size':'11px', 'text-max-width':'120px',
         'width':'120px', 'height':'52px', 'shape':'round-rectangle',
         'text-outline-width':0, 'border-width':0 } },
-    { selector:'node[role="start"], node[role="end"]', style:{ 'shape':'ellipse', 'width':'70px', 'height':'40px', 'color':'#fff' } },
+    { selector:'node[role="start"], node[role="end"]', style:{ 'shape':'ellipse', 'width':'90px', 'height':'40px', 'color':'#fff' } },
+    { selector:'node[role="route"]', style:{ 'shape':'diamond', 'width':'104px', 'height':'78px' } },
     { selector:'node[role="verifier"]', style:{ 'shape':'diamond', 'width':'96px', 'height':'72px' } },
+    { selector:'node[role="tool"]', style:{ 'shape':'barrel' } },
     { selector:'edge', style:{
         'width':2, 'line-color':'#b9b3d6', 'target-arrow-color':'#b9b3d6',
         'target-arrow-shape':'triangle', 'curve-style':'bezier',

@@ -18,6 +18,41 @@ from .graph import AgentState, build_app
 from .io import INDEX_MD, load_index
 
 
+def route(question: str) -> str:
+    """Classify a question to a backend: ``"dart"`` (public listed company via DART) or
+    ``"wiki"`` (internal Centroid valuation KB). LLM call via the guest vLLM (no tools
+    needed); defaults to ``"wiki"`` on any parse/endpoint failure."""
+    from src.stella_kb.llm import chat
+
+    from .graph.nodes import parse_action
+    from .prompts import load as load_prompt
+
+    try:
+        raw = chat(
+            [{"role": "system", "content": load_prompt("route")},
+             {"role": "user", "content": f"Question: {question}\nJSON:"}],
+            max_tokens=120, timeout=30.0,
+        )
+        act = parse_action(raw) or {}
+        return "dart" if act.get("source") == "dart" else "wiki"
+    except Exception:  # noqa: BLE001 — routing must never hard-fail; fall back to wiki
+        return "wiki"
+
+
+def answer(question: str, source: str = "auto", max_steps: int = 3,
+           verbose: bool = False, index: dict | None = None) -> dict[str, Any]:
+    """Unified entry point: route (or honor an explicit ``source``) and dispatch.
+
+    ``source`` is ``"auto"`` (route), ``"wiki"`` (Centroid KB), or ``"dart"`` (public co.).
+    Returns ``{source, answer, trace, steps}`` — same shape for both backends."""
+    src = route(question) if source == "auto" else source
+    if src == "dart":
+        from .dart_agent import run_dart
+        return {"source": "dart", **run_dart(question)}
+    return {"source": "wiki",
+            **run(question, max_steps=max_steps, verbose=verbose, index=index)}
+
+
 def _seed(question: str, max_steps: int, verbose: bool = False) -> AgentState:
     """Initial graph state: INDEX ToC + the question. Each node builds its own prompt."""
     return {
@@ -39,22 +74,30 @@ def _renumber(trace: list) -> list:
 
 
 def _limit() -> dict:
-    # planner → solve (fan-out, one superstep) → synthesizer = 3 supersteps; give headroom
+    # planner → solve (fan-out) → auditor → synthesizer = 4 supersteps; give headroom
     return {"recursion_limit": 25}
 
 
 def run(question: str, max_steps: int = 3, verbose: bool = False,
-        index: dict | None = None) -> dict[str, Any]:
-    """Navigate the wiki to answer ``question``; return ``{answer, trace, steps}``.
+        index: dict | None = None, app: Any = None) -> dict[str, Any]:
+    """Navigate the wiki to answer ``question``; return ``{answer, trace, steps, evidence}``.
 
     ``trace`` is the per-turn routing record (which page it opened, why) — the whole point
     of testing the index as a lookup table. Pass ``verbose=True`` to also print it.
+    ``evidence`` is the cell-anchored facts the agent actually retrieved
+    (``[{page, cell, term, value, ask}]``) — the *retrieved context*, exposed for RAGAS-style
+    evaluation; callers that don't need it can ignore the key.
+
+    ``app`` lets a caller pass a graph compiled once and reused across many questions (the
+    eval builds it per-question otherwise); when given, ``index`` is ignored.
     """
-    app = build_app(index if index is not None else load_index())
+    if app is None:
+        app = build_app(index if index is not None else load_index())
     final: dict[str, Any] = app.invoke(_seed(question, max_steps, verbose), config=_limit())
     return {"answer": (final.get("answer") or "(no answer)").strip(),
             "trace": _renumber(final.get("trace", [])),
-            "steps": final.get("steps", 0)}
+            "steps": final.get("steps", 0),
+            "evidence": final.get("evidence", [])}
 
 
 def ask(question: str, max_steps: int = 3, verbose: bool = False,

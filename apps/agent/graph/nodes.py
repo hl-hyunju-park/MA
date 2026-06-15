@@ -37,6 +37,22 @@ _LLM_SEM = threading.Semaphore(_FANOUT)  # guards the shared guest vLLM from ove
 _SYNTH_ORDER = 10**9  # sorts the synthesizer's trace entry last, after every branch
 
 
+def set_fanout(n: int) -> None:
+    """Resize the in-flight LLM cap. The library default (4) is deliberately polite to the
+    shared guest vLLM; batch jobs (e.g. the eval, which fans out many questions at once) can
+    raise it to match their worker count so workers aren't all blocked on a 4-slot semaphore.
+    Call before launching the work; rebinding is picked up by ``_ask`` at call time."""
+    global _FANOUT, _LLM_SEM
+    _FANOUT = max(1, int(n))
+    _LLM_SEM = threading.Semaphore(_FANOUT)
+
+
+def _per(e: dict) -> str:
+    """`` (2023)`` period suffix for an evidence row, blank when the value is a scalar."""
+    p = (e.get("period") or "").strip()
+    return f" ({p})" if p else ""
+
+
 def _cell_on_page(celltok: str, text: str) -> bool:
     """Whether a bare cell ref (``E4``, ``AU4``) occurs on the page as a *whole* token.
 
@@ -105,6 +121,23 @@ def planner_node(state: AgentState) -> AgentState:
 
 
 # ---------------------------------------------------------- per-sub-question sub-agents
+def _match_page(raw_pick: str, valid: set, by_norm: dict) -> str | None:
+    """Resolve a router-emitted page name to an exact INDEX key, tolerating the forms the
+    model actually produces. The INDEX presents pages as ``[[page]]`` wikilinks, so the model
+    frequently copies the brackets (and sometimes quotes); a strict ``p in valid`` then
+    silently drops a perfectly good pick (e.g. ``[[BS]]`` ≠ ``BS``) and the branch starves.
+    Strip ``[[ ]]``/quotes/whitespace, then fall back to a normalized (space/case-insensitive)
+    match before giving up."""
+    if not isinstance(raw_pick, str):
+        return None
+    p = raw_pick.strip().strip("\"'").strip()
+    if p.startswith("[[") and p.endswith("]]"):
+        p = p[2:-2].strip()
+    if p in valid:
+        return p
+    return by_norm.get(re.sub(r"\s+", "", p).casefold())
+
+
 def _route(sub: dict, tried: list, index: dict, index_md: str) -> tuple[list, dict | None, str]:
     """Pick the wiki page(s) for one sub-question; on a trace sub-Q expand along the DAG."""
     hints = sub.get("hint_terms") or []
@@ -115,7 +148,13 @@ def _route(sub: dict, tried: list, index: dict, index_md: str) -> tuple[list, di
             f"Sub-question: {sub['ask']}{avoid}\n\nReturn the pages JSON.")
     act, _ = _ask(ROUTER, user, 400)
     valid = set(index.get("pages", {}).keys())
-    picks = [p for p in ((act or {}).get("pages") or []) if p in valid]  # drop hallucinations
+    by_norm = {re.sub(r"\s+", "", v).casefold(): v for v in valid}
+    picks, seen = [], set()
+    for raw in (act or {}).get("pages") or []:        # tolerate [[wikilink]]/quote forms
+        m = _match_page(raw, valid, by_norm)
+        if m and m not in seen:                       # resolve + dedup; drop hallucinations
+            seen.add(m)
+            picks.append(m)
 
     path = None
     if sub.get("mode") == "trace" and picks:
@@ -146,8 +185,8 @@ def _retrieve(ask: str, pages: list) -> tuple[list, str]:
             celltok = cell.split("!")[-1]  # soft guard: the cell must be on THIS page
             if celltok and _cell_on_page(celltok, texts[page]):
                 out.append({"page": e.get("page", "") or page, "cell": cell,
-                            "term": e.get("term", ""), "value": str(e.get("value", "")),
-                            "ask": ask})
+                            "term": e.get("term", ""), "period": str(e.get("period", "")),
+                            "value": str(e.get("value", "")), "ask": ask})
         return out
 
     # branch threads spawn this pool too — the _LLM_SEM (not the worker count) is the real
@@ -162,7 +201,7 @@ def _verify(sub: dict, ev: list, path: dict | None) -> tuple[str, str]:
     """Judge whether the sub-question is answered. A traced chain is accepted as-is."""
     if sub.get("mode") == "trace" and path and path.get("chain"):
         return "ok", "provenance chain traced"
-    ev_txt = "\n".join(f"- {e['term']} = {e['value']}  ({e['cell']}, {e['page']})"
+    ev_txt = "\n".join(f"- {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, {e['page']})"
                        for e in ev) or "(no evidence)"
     user = f"Sub-question: {sub['ask']}\n\nEvidence:\n{ev_txt}\n\nReturn the verdict JSON."
     act, _ = _ask(VERIFIER, user, 300)
@@ -219,12 +258,77 @@ def solve_node(state: AgentState, index: dict) -> AgentState:
     return {"evidence": evidence, "paths": paths, "steps": reads, "trace": trace}
 
 
+# --------------------------------------------------------------------------- auditor
+def _is_pdf_page(meta: dict) -> bool:
+    """Whether a page came from the FDD PDF (vs the Excel workbook). PDF pages carry a
+    `pdf …` kind / a `… (PDF)` section in the index; Excel pages don't. Used to tell a
+    report *claim* apart from a source-of-truth Excel value."""
+    blob = f"{meta.get('kind', '')} {meta.get('section', '')}".lower()
+    return "pdf" in blob
+
+
+def auditor_node(state: AgentState, index: dict) -> AgentState:
+    """Deterministic cross-evidence audit between the solve barrier and the synthesizer.
+
+    The per-branch verifier only asks "did THIS sub-question get evidence?" — it never sees
+    the merged set, so it can't catch a reconciliation that cited the *same* cell for two
+    opposed quantities (fabricated agreement), a report *claim* mistaken for source data, or a
+    planned sub-question that found nothing. These are exactly the over-claiming failures.
+    The checks are rule-based (no LLM) so they can't hallucinate and won't touch the answers
+    that are already right; they only append caveats the synthesizer must honor."""
+    ev = state.get("evidence", [])
+    pages = index.get("pages", {})
+    caveats: list[str] = []
+
+    # 1) same (page,cell) used as evidence for >=2 distinct sub-questions. For a "A vs B"
+    #    reconciliation this means one side was never really retrieved — the smoking gun
+    #    behind fabricated "두 값이 일치한다" conclusions.
+    cell_asks: dict[tuple, set] = {}
+    ask_ev: dict[str, list] = {}
+    for e in ev:
+        cell_asks.setdefault((e["page"], e["cell"]), set()).add(e["ask"])
+        ask_ev.setdefault(e["ask"], []).append(e)
+    for (page, cell), asks in cell_asks.items():
+        if len(asks) >= 2:
+            ref = cell if "!" in cell else f"{page}!{cell}"   # cell may already carry the sheet
+            caveats.append(
+                f"동일 출처 셀 {ref} 이(가) 서로 다른 하위질문의 근거로 중복 사용됨 "
+                f"({' / '.join(sorted(asks))}). 두 항목을 서로 다른 자료로 대사한 것이 아니므로 "
+                f"'일치/동일하다'라고 단정하지 말 것 — 한쪽 출처는 실제로 확인되지 않았을 수 있음.")
+
+    # 2) a sub-question whose evidence is ENTIRELY from PDF/report pages. The report is the
+    #    thing being cross-checked, not the source of truth: a value on an FDD page is a
+    #    *claim*, never proof that the underlying (Excel) data exists for that period/scope.
+    for ask, items in ask_ev.items():
+        if items and all(_is_pdf_page(pages.get(e["page"], {})) for e in items):
+            caveats.append(
+                f"하위질문 '{ask}' 의 근거가 PDF/리포트 페이지에서만 나옴 — 원본(Excel) 자료로는 "
+                f"확인되지 않음. 리포트의 '주장'일 뿐, 원본 자료에 그 수치/시점이 존재한다는 "
+                f"증거가 아님.")
+
+    # 3) a planned sub-question that collected no evidence at all → that part is unverifiable.
+    answered = set(ask_ev)
+    for p in state.get("plan", []):
+        if p.get("ask") and p["ask"] not in answered:
+            caveats.append(f"하위질문 '{p['ask']}' 에 대한 근거를 수집하지 못함 — 해당 부분은 '확인 불가'.")
+
+    if state.get("verbose"):
+        print(f"[auditor] {len(caveats)} caveat(s)")
+    thought = f"{len(caveats)} caveat" if caveats else "이상 없음"
+    return {
+        "caveats": caveats,
+        "trace": [_rec(_SYNTH_ORDER - 1, 0, "auditor", "audit",
+                       f"{len(caveats)} caveat(s)", thought)],
+    }
+
+
 # ----------------------------------------------------------------------- synthesizer
 def synthesizer_node(state: AgentState) -> AgentState:
     """Write the final cited Korean answer from the accumulated evidence + traced paths."""
     ev = state.get("evidence", [])
     ev_txt = "\n".join(
-        f"- [{e['ask']}] {e['term']} = {e['value']}  ({e['cell']}, page {e['page']})" for e in ev
+        f"- [{e['ask']}] {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, page {e['page']})"
+        for e in ev
     ) or "(no evidence gathered)"
 
     # provenance chains traced over the formula DAG (sheet path; ⇒ marks a wiki page)
@@ -236,8 +340,14 @@ def synthesizer_node(state: AgentState) -> AgentState:
             path_txt += f"\n- [{pth['ask']}] {pth['start']} 에서 {arrow} 경로: {pth['start']} → {hops}"
     path_block = f"\n\nProvenance chains (formula DAG, deterministic):{path_txt}" if path_txt else ""
 
+    # deterministic audit flags (dup-cell-across-asks, pdf-only claims, unanswered sub-Qs) —
+    # the synthesizer must honor these and not over-claim agreement past them.
+    caveats = state.get("caveats", [])
+    caveat_block = ("\n\n감사 경고(AUDIT — 반드시 반영, 무시 금지):\n"
+                    + "\n".join(f"- {c}" for c in caveats)) if caveats else ""
+
     user = (f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}"
-            f"{path_block}\n\nWrite the final answer JSON.")
+            f"{path_block}{caveat_block}\n\nWrite the final answer JSON.")
     act, raw = _ask(SYNTHESIZER, user, 700)
     text = ((act or {}).get("text") or raw or "").strip() or "(빈 답변)"
     return {

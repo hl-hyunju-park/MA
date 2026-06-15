@@ -1,5 +1,7 @@
 # Python
 .venv/
+# isolated RAGAS eval env (gitignore has NO inline comments — keep pattern on its own line)
+.venv-ragas/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -9,6 +11,13 @@ __pycache__/
 # artifacts (parsed/, wiki/, md/, *.json, *.graphml). Commit src/, not data/.
 data/
 
+# CONFIDENTIAL client material — NDA FDD reports + valuation models (Project Stella /
+# Project Caesar). NEVER commit or push. Also the vision-parse cache (extracted PDF
+# content = confidential) and any local backups.
+test_data/
+.cache/
+bak/
+
 # Frontend build / deps
 frontend/node_modules/
 frontend/dist/
@@ -16,6 +25,9 @@ frontend/dist/
 # Editor / OS
 .DS_Store
 *.swp
+
+# Secrets: never commit .env (DART_MCP_TOKEN, DART_API_KEY). Use .env.example as template.
+.env
 
 # Local agent/session state
 .claude/

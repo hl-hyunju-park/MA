@@ -1,0 +1,20 @@
+# RAGAS evaluation harness — isolated from the lean agent/server runtime.
+# Install into a DEDICATED venv: RAGAS's heavy stack (datasets, pyarrow, scipy,
+# scikit-network) plus its langchain pins must not touch the production agent's deps.
+#
+#   python3.11 -m venv .venv-ragas
+#   .venv-ragas/bin/pip install -r eval/requirements-ragas.txt
+#   .venv-ragas/bin/python -m eval.ragas_eval        # consumes data/eval_stella/answers.json
+#
+# Reuses the local gemma-4 vLLM (123.37.5.219:8001) as the judge LLM via langchain-openai —
+# LLM-only metrics (no embeddings endpoint on the generate-task vLLM).
+#
+# IMPORTANT — pin the langchain 0.3 stack. ragas 0.4.3 leaves its langchain deps unpinned,
+# so a bare install pulls langchain 1.x, but ragas's code imports ChatVertexAI from the
+# pre-1.0 langchain_community path (removed in 1.x) -> ModuleNotFoundError at import. This
+# venv never imports langgraph/apps.agent, so pinning langchain<1 here is fully contained.
+ragas==0.4.3
+langchain<1
+langchain-core<1
+langchain-community<0.4
+langchain-openai<1

@@ -28,7 +28,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.stella_kb.llm import BASE_URL, MODEL
 
-from ..core import run, stream_run
+from ..core import answer, stream_run
 from ..io import INDEX_JSON, PAGES_DIR, load_index
 from .schema import AskRequest, AskResponse
 
@@ -80,16 +80,23 @@ def health() -> dict:
 
 @app.post("/ask", response_model=AskResponse)
 def ask_endpoint(req: AskRequest) -> AskResponse:
-    """Answer one question by navigating the wiki; returns the answer + routing trace."""
+    """Answer one question, routing to the wiki (Centroid) or DART (public co.) backend.
+
+    ``source`` selects the backend: ``auto`` (route via the LLM), ``wiki``, or ``dart``.
+    Returns the answer, which backend served it, and the routing trace."""
     if not req.question.strip():
         raise HTTPException(status_code=422, detail="question must not be empty")
-    if not _vllm_up():
+    # auto/wiki need the guest vLLM (routing + wiki retrieval run on it); dart uses its own
+    # endpoints (the tool LLM on :8001 + the DART MCP server) and degrades to an error answer.
+    if req.source != "dart" and not _vllm_up():
         raise HTTPException(status_code=503, detail=f"LLM endpoint {BASE_URL} unreachable")
-    result = run(req.question, max_steps=req.max_steps, index=_STATE.get("index"))
+    result = answer(req.question, source=req.source, max_steps=req.max_steps,
+                    index=_STATE.get("index"))
     return AskResponse(
         question=req.question,
         answer=result["answer"],
         steps=result["steps"],
+        source=result["source"],
         trace=result["trace"] if req.include_trace else None,
     )
 

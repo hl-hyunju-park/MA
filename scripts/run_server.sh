@@ -26,8 +26,8 @@ if [ ! -f data/wiki/index.json ]; then
 fi
 echo "    data/wiki present ($(ls data/wiki/pages/*.md 2>/dev/null | wc -l | tr -d ' ') pages)"
 
-echo "==> checking local vLLM endpoint (localhost:33333) ..."
-if curl -sf --max-time 8 localhost:33333/v1/models >/dev/null; then
+echo "==> checking vLLM endpoint (123.37.5.219:8001) ..."
+if curl -sf --max-time 8 123.37.5.219:8001/v1/models >/dev/null; then
   echo "    vLLM is up"
 else
   echo "    !! vLLM not reachable — /ask will return 503 until it is up."
