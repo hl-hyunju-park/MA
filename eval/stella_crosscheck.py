@@ -146,8 +146,8 @@ def buildall() -> None:
 
 
 def build_pdf() -> None:
-    """Ingest the summary PDF (opendataloader → markdown → sections → LLM-structured pages)
-    and merge the PDF pages into the existing eval index alongside the 18 Excel pages."""
+    """Ingest the summary PDF (vision parser → per-page markdown → sections → LLM-structured
+    pages) and merge the PDF pages into the existing eval index alongside the 18 Excel pages."""
     from src.stella_kb.wiki import index as wiki_index
     from src.stella_kb.wiki import pdf_pages
 

@@ -20,8 +20,7 @@ Flow (mirrors dump_md -> parse_llm -> compile):
 ``build_pages`` returns the index pieces (page entries, alias additions, tree section) for the
 caller to merge into an existing wiki ``index.json`` next to the Excel pages.
 
-Requires the vision endpoint (gemma-4 vLLM, ``STELLA_LLM_URL``) + PyMuPDF/pdfplumber. The
-legacy ``convert_to_markdown`` (opendataloader-pdf + Java) is kept for reference but unused.
+Requires the vision endpoint (gemma-4 vLLM, ``STELLA_LLM_URL``) + PyMuPDF/pdfplumber.
 """
 
 from __future__ import annotations
@@ -34,40 +33,6 @@ from ..prompts import load as load_prompt
 
 _SYSTEM = load_prompt("pdf_page_system")
 SECTION = "FDD 요약 보고서 (PDF)"
-_H2 = re.compile(r"^##\s+(.*\S)\s*$", re.M)
-
-
-def convert_to_markdown(pdf_path: str, out_dir: str) -> str:
-    """Convert the PDF to one markdown file via opendataloader-pdf; return its text."""
-    import opendataloader_pdf
-
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    opendataloader_pdf.convert(input_path=[pdf_path], output_dir=str(out), format="markdown")
-    return (out / f"{Path(pdf_path).stem}.md").read_text(encoding="utf-8")
-
-
-def split_sections(md: str, min_chars: int = 200) -> list[tuple[str, str]]:
-    """Split the markdown on its ``## `` H2 headings into ``[(label, body), ...]``.
-
-    The label drops the boilerplate ``Executive Summary |`` prefix. Sections shorter than
-    ``min_chars`` (covers/dividers) are dropped; a duplicate label gets a ``#n`` suffix so
-    page names stay unique."""
-    heads = list(_H2.finditer(md))
-    out, seen = [], {}
-    for i, m in enumerate(heads):
-        label = re.sub(r"Executive Summary\s*\|", "", m.group(1)).strip() or f"섹션{i + 1}"
-        label = re.sub(r"\s*\[FDD\].*$", "", label).strip() or f"섹션{i + 1}"
-        body = md[m.end():(heads[i + 1].start() if i + 1 < len(heads) else len(md))].strip()
-        if len(body) < min_chars:
-            continue
-        seen[label] = seen.get(label, 0) + 1
-        if seen[label] > 1:
-            label = f"{label} #{seen[label]}"
-        out.append((label, body))
-    return out
-
-
 _HEADING = re.compile(r"^#{1,3}\s+(.*\S)\s*$", re.M)
 
 
@@ -75,7 +40,7 @@ def _label_from_page(md: str) -> str:
     """Derive a section label from a vision page's first markdown heading.
 
     The FDD pages carry a ``# Executive Summary | <name>`` title; strip the boilerplate
-    ``Executive Summary |`` prefix and any ``[FDD]`` suffix, same as :func:`split_sections`."""
+    ``Executive Summary |`` prefix and any ``[FDD]`` suffix."""
     m = _HEADING.search(md)
     if not m:
         return ""
@@ -87,11 +52,10 @@ def _label_from_page(md: str) -> str:
 def pdf_to_sections(pdf_path: str, min_chars: int = 200) -> list[tuple[str, str]]:
     """Vision-parse the PDF (gemma multimodal) into ``[(label, body), ...]`` — one per page.
 
-    Replaces the opendataloader ``convert_to_markdown`` + ``split_sections`` path: the vision
-    parser already emits faithful per-page markdown (tables, charts, reading order) for these
-    slide-deck FDD reports, so each PDF page becomes one wiki section. Short pages
+    The vision parser emits faithful per-page markdown (tables, charts, reading order) for
+    these slide-deck FDD reports, so each PDF page becomes one wiki section. Short pages
     (covers/dividers, < ``min_chars``) are dropped; a duplicate label gets a ``#n`` suffix so
-    page names stay unique (same rule as :func:`split_sections`)."""
+    page names stay unique."""
     from ..parsers.pdf import describe_pdf
 
     pages, _ = describe_pdf(pdf_path)
