@@ -17,6 +17,9 @@ depend on arithmetic and gave a real retrieval signal):
   - **answer_correctness** (custom) — gold-anchored compare-don't-recompute → correct / partial
     / incorrect (the tier judge's philosophy as a metric).
   - **context_recall** (stock) — did retrieval surface the cells the gold answer needs?
+    (conservative: penalizes derived gold figures not literally in a cell)
+  - **retrieval_sufficiency** (custom) — the arithmetic-fair version: are the cells needed to
+    *derive* the gold answer present? credits totals/%/ratios when their operands were retrieved.
 
 Async (RAGAS modern API): one ``AsyncOpenAI`` client → ``llm_factory`` instructor LLM. Every
 (record × metric) ``ascore`` is a coroutine, run concurrently under a semaphore so gemma isn't
@@ -46,10 +49,12 @@ BASE_URL = os.environ.get("STELLA_LLM_URL", "http://123.37.5.219:8001/v1")
 MODEL = os.environ.get("STELLA_LLM_MODEL", "gemma-4-31B-it")
 CONCURRENCY = int(os.environ.get("RAGAS_CONCURRENCY", "6"))
 
-METRIC_COLS = ["grounded_faithfulness", "answer_correctness", "context_recall"]
+METRIC_COLS = ["grounded_faithfulness", "answer_correctness", "context_recall",
+               "retrieval_sufficiency"]
 NAN = float("nan")
-# discrete label -> numeric (unknown -> NaN). partial shared by both custom metrics.
-_LABEL = {"grounded": 1.0, "correct": 1.0, "partial": 0.5, "ungrounded": 0.0, "incorrect": 0.0}
+# discrete label -> numeric (unknown -> NaN). 'partial' shared across the custom metrics.
+_LABEL = {"grounded": 1.0, "correct": 1.0, "sufficient": 1.0, "partial": 0.5,
+          "ungrounded": 0.0, "incorrect": 0.0, "insufficient": 0.0}
 
 # --- task-tuned prompts (Korean, per repo rule). {vars} are filled by ascore kwargs. --------
 
@@ -76,6 +81,24 @@ _CORRECT_PROMPT = (
     "correct / partial / incorrect 중 하나로만 판정하라."
 )
 
+# retrieval_sufficiency = the arithmetic-fair version of context_recall. Stock ContextRecall
+# checks literal attribution of gold claims to the cells, so it penalizes DERIVED gold figures
+# (합계/%/배수) that aren't in any single cell even when the operand cells WERE retrieved. This
+# asks the gold-deriving question instead.
+_SUFFICIENCY_PROMPT = (
+    "M&A 밸류에이션 질문의 골든(정답) 답을 도출하는 데 필요한 정보가, 검색된 근거 셀에 들어 "
+    "있는지 판정하라.\n"
+    "핵심: 골든 답의 합계·비중(%)·배수·증감 같은 '파생 수치'는 근거 셀에 그대로 없어도, 그 "
+    "수치를 계산할 피연산자 셀이 검색되어 있으면 '충분'으로 본다(직접 검산은 하지 말고 도출 "
+    "가능성만 보라). 골든 답이 '제공 데이터로 확인 불가/데이터 부족'을 핵심으로 하면, 검색된 "
+    "근거에도 그 수치가 없어 결론과 일치할 때 '충분'으로 본다.\n\n"
+    "- sufficient: 골든 답을 도출(또는 그 '확인 불가' 결론을 지지)하는 데 필요한 셀이 모두 검색됨.\n"
+    "- partial: 일부만 검색됨.\n"
+    "- insufficient: 필요한 핵심 셀이 검색되지 않음.\n\n"
+    "[질문]\n{question}\n\n[골든 답]\n{reference}\n\n[검색된 근거 셀]\n{contexts}\n\n"
+    "sufficient / partial / insufficient 중 하나로만 판정하라."
+)
+
 
 def _build():
     """One instructor LLM over gemma; two custom DiscreteMetrics + stock ContextRecall."""
@@ -91,7 +114,10 @@ def _build():
     correct = DiscreteMetric(name="answer_correctness",
                              allowed_values=["correct", "partial", "incorrect"],
                              prompt=_CORRECT_PROMPT)
-    return llm, grounded, correct, ContextRecall(llm=llm)
+    sufficiency = DiscreteMetric(name="retrieval_sufficiency",
+                                 allowed_values=["sufficient", "partial", "insufficient"],
+                                 prompt=_SUFFICIENCY_PROMPT)
+    return llm, grounded, correct, ContextRecall(llm=llm), sufficiency
 
 
 async def _discrete(sem, metric, llm, **kw) -> tuple[float, str]:
@@ -113,7 +139,7 @@ async def _collection(sem, metric, **kw) -> float:
 
 
 async def _score_record(r: dict, M, sem: asyncio.Semaphore) -> dict:
-    llm, grounded, correct, ctx_metric = M
+    llm, grounded, correct, ctx_metric, sufficiency = M
     q = r.get("question", "")
     resp = r.get("agent_answer", "") or ""
     ref = r.get("answer", "") or ""
@@ -136,10 +162,16 @@ async def _score_record(r: dict, M, sem: asyncio.Semaphore) -> dict:
         return await _collection(sem, ctx_metric, user_input=q, retrieved_contexts=ctx,
                                  reference=ref)
 
-    (gv, gr), (cv, cr), rv = await asyncio.gather(_grounded(), _correct(), _recall())
+    async def _sufficiency():
+        return await _discrete(sem, sufficiency, llm, question=q, reference=ref,
+                               contexts="\n".join(ctx) if ctx else "(검색된 근거 없음)")
+
+    (gv, gr), (cv, cr), rv, (sv, sr) = await asyncio.gather(
+        _grounded(), _correct(), _recall(), _sufficiency())
     row = {"id": r.get("id", "?"), "tier": r.get("tier"),
            "grounded_faithfulness": gv, "answer_correctness": cv, "context_recall": rv,
-           "_grounded_reason": gr, "_correct_reason": cr}
+           "retrieval_sufficiency": sv,
+           "_grounded_reason": gr, "_correct_reason": cr, "_sufficiency_reason": sr}
     print(f"  {row['id']:<5} T{row['tier']}  "
           + "  ".join(f"{c}={_fmt(row[c])}" for c in METRIC_COLS))
     return row
@@ -157,7 +189,8 @@ def _mean(vals) -> float:
 def _write_report(rows: list[dict], n_ctx: int) -> None:
     with RAGAS_CSV.open("w", newline="", encoding="utf-8") as fp:
         w = csv.DictWriter(fp, fieldnames=["id", "tier", *METRIC_COLS,
-                                           "_grounded_reason", "_correct_reason"])
+                                           "_grounded_reason", "_correct_reason",
+                                           "_sufficiency_reason"])
         w.writeheader()
         w.writerows(rows)
 
@@ -171,8 +204,9 @@ def _write_report(rows: list[dict], n_ctx: int) -> None:
     lines = ["# Stella cross-check — RAGAS async (custom DiscreteMetrics, gemma judge)", "",
              f"answers: `{ANSWERS_JSON.name}` · {len(rows)} Q · {n_ctx} with retrieved context "
              f"· model `{MODEL}` · concurrency {CONCURRENCY}", "",
-             "metrics: **grounded_faithfulness** & **answer_correctness** are custom "
-             "(arithmetic/gold-aware) DiscreteMetrics; **context_recall** is stock RAGAS.", "",
+             "metrics: **grounded_faithfulness**, **answer_correctness**, "
+             "**retrieval_sufficiency** are custom (arithmetic/gold-aware) DiscreteMetrics; "
+             "**context_recall** is stock RAGAS (conservative — literal attribution).", "",
              "| scope | n | " + " | ".join(METRIC_COLS) + " |",
              "|---|---|" + "---|" * len(METRIC_COLS),
              f"| **all** | {len(rows)} | {agg(rows)} |"]
