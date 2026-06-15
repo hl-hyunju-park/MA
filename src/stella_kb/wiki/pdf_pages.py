@@ -34,19 +34,24 @@ from ..prompts import load as load_prompt
 _SYSTEM = load_prompt("pdf_page_system")
 SECTION = "FDD 요약 보고서 (PDF)"
 _HEADING = re.compile(r"^#{1,3}\s+(.*\S)\s*$", re.M)
+# FDD pages carry an "Executive Summary | <topic>" breadcrumb — match it anywhere (heading or
+# body). The capture stops at the next `|`/newline, so a trailing pipe never leaks into label.
+_EXEC_CRUMB = re.compile(r"Executive Summary\s*\|\s*([^\n|]+)")
 
 
 def _label_from_page(md: str) -> str:
-    """Derive a section label from a vision page's first markdown heading.
+    """Derive a section label from a vision page.
 
-    The FDD pages carry a ``# Executive Summary | <name>`` title; strip the boilerplate
-    ``Executive Summary |`` prefix and any ``[FDD]`` suffix."""
-    m = _HEADING.search(md)
+    Prefer the ``Executive Summary | <topic>`` breadcrumb (present on every FDD page, whether
+    or not it's a markdown heading); fall back to the first ``#``/``##``/``###`` heading. Strips
+    the boilerplate prefix, any ``[FDD]`` suffix, and stray trailing separators (``|``, ``-``)."""
+    m = _EXEC_CRUMB.search(md) or _HEADING.search(md)
     if not m:
         return ""
     label = re.sub(r"Executive Summary\s*\|", "", m.group(1)).strip()
     label = re.sub(r"\s*\[FDD\].*$", "", label).strip()
-    return label
+    label = re.sub(r"[*_`]+", "", label)  # strip markdown emphasis (**bold**, _em_, `code`)
+    return label.strip(" |·-\t")
 
 
 def pdf_to_sections(pdf_path: str, min_chars: int = 200) -> list[tuple[str, str]]:
@@ -87,15 +92,19 @@ def _grounded(value: str, text: str) -> bool:
 def structure_section(label: str, text: str, timeout: float = 600.0) -> dict:
     """LLM-structure one section's markdown; drop ungrounded figures. ``{}`` if unusable."""
     raw = chat(
-        [{"role": "system", "content": _SYSTEM},
-         {"role": "user", "content": f"PDF 섹션: {label!r}\n\n{text}\n\nJSON:"}],
-        max_tokens=3500, timeout=timeout,
+        [
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": f"PDF 섹션: {label!r}\n\n{text}\n\nJSON:"},
+        ],
+        max_tokens=4500,
+        timeout=timeout,
     )
     obj = _json_span(raw, "{", "}")
     if not isinstance(obj, dict):
         return {}
-    obj["figures"] = [f for f in (obj.get("figures") or [])
-                      if isinstance(f, dict) and f.get("value") and _grounded(f["value"], text)]
+    obj["figures"] = [
+        f for f in (obj.get("figures") or []) if isinstance(f, dict) and f.get("value") and _grounded(f["value"], text)
+    ]
     return obj
 
 
@@ -105,17 +114,32 @@ def _page_md(name: str, tag: str, label: str, s: dict) -> str:
     out = ["---", "source: PDF", f"page: {name}", f"tag: {tag}", f"section: {label}"]
     if aliases:
         out.append("aliases: [" + ", ".join(aliases) + "]")
-    out += ["---", "", f"# {name}", "",
-            f"> 출처: FDD&Valuation Report Executive Summary — {label} (`{tag}`). "
-            "**PDF 요약 수치이며 엑셀 원천과 정의·기준이 다를 수 있습니다**(예: 영업수익 Total은 "
-            "배당금 포함; 보고서 기준일은 Jun-24).", "",
-            "## What this is", "", (s.get("summary") or "_(요약 없음)_"), "",
-            "## Key figures (PDF 보고서 수치)", "",
-            "| 항목 | 기간 | value |", "|---|---|---|"]
+    out += [
+        "---",
+        "",
+        f"# {name}",
+        "",
+        f"> 출처: FDD&Valuation Report Executive Summary — {label} (`{tag}`). "
+        "**PDF 요약 수치이며 엑셀 원천과 정의·기준이 다를 수 있습니다**(예: 영업수익 Total은 "
+        "배당금 포함; 보고서 기준일은 Jun-24).",
+        "",
+        "## What this is",
+        "",
+        (s.get("summary") or "_(요약 없음)_"),
+        "",
+        "## Key figures (PDF 보고서 수치)",
+        "",
+        "| 항목 | 기간 | value |",
+        "|---|---|---|",
+    ]
     for f in s.get("figures") or []:
         out.append(f"| {f.get('label','')} | {f.get('period','') or ''} | {f.get('value','')} [{tag}] |")
-    out += ["", "## Links", "",
-            "- PDF 요약 — 동일 항목의 **엑셀 원천 페이지와 교차검증** 대상 (단위·기준일 차이 주의)."]
+    out += [
+        "",
+        "## Links",
+        "",
+        "- PDF 요약 — 동일 항목의 **엑셀 원천 페이지와 교차검증** 대상 (단위·기준일 차이 주의).",
+    ]
     return "\n".join(out) + "\n"
 
 
@@ -147,13 +171,23 @@ def build_pages(pdf_path: str, pages_dir: Path, structurer=structure_section) ->
         page_aliases = [a for a in (s.get("aliases") or []) if a]
         labels = [f.get("label") for f in figs if f.get("label")]
         entries[name] = {
-            "sheet": name, "title": s.get("title") or label,
+            "sheet": name,
+            "title": s.get("title") or label,
             "desc": (s.get("summary") or "").split(". ")[0][:120] or None,
-            "section": SECTION, "group": label, "kind": "pdf 요약", "case": None,
-            "unit": None, "period": "Dec-20–Jun-24", "data_status": None,
-            "n_items": len(figs), "has_page": True, "aliases": page_aliases,
+            "section": SECTION,
+            "group": label,
+            "kind": "pdf 요약",
+            "case": None,
+            "unit": None,
+            "period": "Dec-20–Jun-24",
+            "data_status": None,
+            "n_items": len(figs),
+            "has_page": True,
+            "aliases": page_aliases,
             "items": [{"label": lb, "ko": None, "cell": tag, "role": "pdf"} for lb in labels],
-            "depends_on": [], "feeds_into": [], "source": "PDF",
+            "depends_on": [],
+            "feeds_into": [],
+            "source": "PDF",
         }
         for term in page_aliases + labels:
             key = re.sub(r"\s+", "", str(term)).casefold()
@@ -186,8 +220,8 @@ def merge_into_index(index: dict, entries: dict, alias_add: dict, tree_add: dict
     ai = index["alias_index"]
     for key, bucket in alias_add.items():
         ai.setdefault(key, []).extend(
-            b for b in bucket
-            if not any(h["page"] == b["page"] and h["cell"] == b["cell"] for h in ai.get(key, [])))
+            b for b in bucket if not any(h["page"] == b["page"] and h["cell"] == b["cell"] for h in ai.get(key, []))
+        )
     for section, groups in tree_add.items():
         dst = index["tree"].setdefault(section, {})
         for g, names in groups.items():
@@ -205,7 +239,7 @@ if __name__ == "__main__":
     from .index import OUT_JSON, OUT_MD, PAGES_DIR, render_md
 
     pdfs = [str(p) for p in sorted(Path("data/raw").glob("*.pdf"))]
-    if len(sys.argv) > 1:                                  # explicit path(s) override the glob
+    if len(sys.argv) > 1:  # explicit path(s) override the glob
         pdfs = sys.argv[1:]
     if not pdfs:
         print("pdf_pages: no data/raw/*.pdf — skipping PDF ingest.")
@@ -213,10 +247,10 @@ if __name__ == "__main__":
     if not OUT_JSON.exists():
         sys.exit(f"pdf_pages: {OUT_JSON} not found — run the index stage (4) first.")
 
-    for stale in PAGES_DIR.glob("FDD*.md"):                # clean slate so a rebuild replaces
+    for stale in PAGES_DIR.glob("FDD*.md"):  # clean slate so a rebuild replaces
         stale.unlink()
     index = json.loads(OUT_JSON.read_text(encoding="utf-8"))
-    index = strip_pdf(index)                               # drop any prior PDF entries first
+    index = strip_pdf(index)  # drop any prior PDF entries first
     for pdf in pdfs:
         print(f"pdf_pages: ingest {pdf}")
         entries, alias_add, tree_add = build_pages(pdf, PAGES_DIR)
@@ -225,5 +259,4 @@ if __name__ == "__main__":
 
     OUT_JSON.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     OUT_MD.write_text(render_md(index), encoding="utf-8")
-    print(f"pdf_pages: merged -> {OUT_JSON}  (pages={len(index['pages'])}, "
-          f"aliases={len(index['alias_index'])})")
+    print(f"pdf_pages: merged -> {OUT_JSON}  (pages={len(index['pages'])}, " f"aliases={len(index['alias_index'])})")
