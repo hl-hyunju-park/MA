@@ -49,23 +49,29 @@ planner → (fan-out) solve×N → auditor → synthesizer
 ## 레이아웃
 
 ```
+data/                 # 버전별 빌드 산출물 (gitignore). 각 버전은 data/<version>/ 아래 자기완결
+  v0.1/  { raw md parsed wiki }   # 정본 63시트 센트로이드 모델 — 기본(default) 데이터셋
+  v0.2/  { raw md parsed wiki }   # 멀티덱 비전 테스트셋: 센트로이드 원장 + CAESAR/LIFE/STELLA FDD 덱
+  eval/  graph/  logs/            # 평가 출력 · 그래프 산출물 · 로그
 src/stella_kb/        # KB 빌드 파이프라인
-  graph/              # 수식 DAG → 의미 프로퍼티 그래프 (extract / semantic / metrics / query)
-  wiki/               # 워크북 → 마크다운 위키 (dump_md → parse_llm → compile → index) + ledger
-  parsers/pdf/        # 비전 기반 PDF 파서 (FDD 적재)
-  llm.py  config.py   # OpenAI 호환 vLLM 클라이언트 · 중앙 설정(config.yaml)
+  graph/              # 수식 DAG → 의미 프로퍼티 그래프 (extract / semantic / metrics / lift / query)
+  wiki/               # 워크북 → 마크다운 위키 (dump_md → parse_llm → compile → index → pdf_pages) + ledger
+    pdf_pages.py      # PDF 적재: 비전 → 구조화 figure + 원문 표/[다이어그램] 엣지목록 · 덱별 2층 문서노드
+  parsers/pdf/        # 비전 기반 PDF 파서 (표·[그래프]·[다이어그램] 추출)
+  llm.py  config.py   # OpenAI 호환 vLLM 클라이언트 · 중앙 설정(env > config.yaml > default; 경로 접근자)
 apps/agent/           # 질의 에이전트
-  core.py             # 공개 API: run / ask / answer(라우터) / stream_run
-  graph/              # LangGraph: state · nodes(planner/solve/auditor/synthesizer) · build
+  core.py             # 공개 API: run / ask / answer(라우터) / stream_run — 데이터셋 store 인자
+  datasets.py         # 데이터셋(위키 버전) 레지스트리 + 캐시 WikiStore (id → 위키 디렉터리)
+  graph/              # LangGraph: state · nodes(planner/solve/auditor/synthesizer) · build (wiki_dir 스레딩)
   io/                 # 결정론적 위키 접근 (lookup, open_page, trace_links, query_ledger)
-  api/                # FastAPI: /ask, /ask/stream(SSE), /health
+  api/                # FastAPI: /ask(GET) · /ask/stream(GET SSE) · /datasets · /health
   dart_agent.py       # DART(상장사) tool-calling 백엔드
   prompts/            # 한국어 프롬프트 (route, planner, router, retriever, verifier, synthesizer)
-frontend/             # React + Vite 채팅 UI (SSE), API 프록시
+frontend/             # React + Vite 채팅 UI (SSE) · DatasetPicker(버전 선택) · API 프록시
 mcps/dart-mcp/        # 벤더링한 DART 공시 MCP 서버 (Docker, SSE :8002, 토큰 인증)
-eval/                 # stella_crosscheck(tier 판정) + ragas_eval(커스텀 DiscreteMetric)
-scripts/              # run_server.sh, run_pipeline.sh, serve_gemma.sh, serve_dart_mcp.sh
-config.yaml           # 중앙 설정 (env > yaml > default); 비밀값은 .env에만
+eval/                 # stella_crosscheck(v0.1 tier) · qa_eval(v0.2 비전-QA rubric) · ragas_eval
+scripts/              # run_server.sh, run_pipeline.sh, run_eval.sh, run_qa_eval.sh, serve_*.sh
+config.yaml           # 중앙 설정 (env > yaml > default) · agent.datasets 버전 레지스트리; 비밀값은 .env에만
 ```
 
 ## 설치
@@ -84,14 +90,27 @@ pip install -r requirements.txt
 # 그래프 패러다임
 python -m src.stella_kb.graph.extract     # 수식 → 약 13.7k 셀, 약 74k DEPENDS_ON 엣지
 python -m src.stella_kb.graph.metrics     # 큐레이션 cell→Metric 앵커 → 102 metric, 14 period
-python -m src.stella_kb.graph.semantic    # 전체 의미 그래프 → data/stella_graph.json
+python -m src.stella_kb.graph.semantic    # 전체 의미 그래프 → data/graph/stella_graph.json
 python -m src.stella_kb.graph.query       # 질의: resolve → traverse → 인용 답변
 
-# 위키 패러다임
-scripts/run_pipeline.sh                    # dump_md → parse_llm → compile → index (data/wiki/)
+# 위키 패러다임 — 기본은 data/v0.1/ 에 빌드. 새 버전은 env로 디렉터리만 지정(코드 수정 불필요):
+scripts/run_pipeline.sh                                   # 정본(v0.1) 빌드 → data/v0.1/wiki/
+MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=data/v0.2 \
+  MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh # 새 버전 빌드 → data/v0.2/wiki/
+# 빌드 후 config.yaml 의 agent.datasets 에 한 줄 등록하면 API/UI에서 선택 가능.
 ```
 
 (`data/`의 빌드 산출물은 재생성 가능하며 gitignore 대상 — `src/`만 커밋, `data/`는 커밋 금지.)
+
+### 데이터셋(버전) 선택
+
+에이전트는 등록된 데이터셋을 **요청 단위로** 선택해 답합니다(동시성 안전). `config.yaml`의
+`agent.datasets`가 안전한 id → 위키 디렉터리를 매핑하고, 요청에 `dataset` 파라미터로 고릅니다.
+
+```bash
+curl "localhost:5001/datasets"                              # 등록·빌드된 버전 목록
+curl "localhost:5001/ask?question=기업가치는?&dataset=v0.2"  # 특정 버전 질의 (GET+Query)
+```
 
 ## 에이전트 실행 (API + UI)
 
@@ -112,14 +131,18 @@ cd frontend && npm install && \
 
 ## 평가
 
-별도 테스트 워크북에 대한 3-tier 교차검증 세트(정합 재구성 / 불일치 감지 / 검증 불가)를 두 방식으로
-채점합니다.
+`test_data/` 아래 두 정답셋을 공유 vLLM으로 채점하고 결과는 `data/eval/`에 씁니다.
 
 ```bash
-python -m eval.stella_crosscheck all       # build → eval(20문항) → tier 인지 LLM 판정
-.venv-ragas/bin/python -m eval.ragas_eval  # RAGAS: grounded_faithfulness, answer_correctness,
-                                           #        context_recall, retrieval_sufficiency
+scripts/run_qa_eval.sh                      # v0.2 비전-QA 54문항(덱 차트/구조도/매트릭스), rubric 채점
+                                            #   → data/eval/v0.2 (doc·capability C1~C5·visual_type 분해)
+scripts/run_eval.sh                         # v0.1 3-tier PDF×Excel 교차검증 20문항 (지정 위키 대상)
+.venv-ragas/bin/python -m eval.ragas_eval   # RAGAS: grounded_faithfulness, answer_correctness, …
 ```
+
+> ⚠️ **평가는 노이즈가 큽니다.** 공유 vLLM은 temperature 0에서도 비결정적(연속 배칭)이고, 위키
+> 재빌드는 페이지별 `structure_section`을 다시 실행하므로, 단일 런의 ±0.1 미만 점수 차이는 신호가
+> 아닙니다. **여러 런의 평균**으로 비교하고, 에이전트만 바꾸는 A/B에서는 빌드된 페이지를 고정하세요.
 
 **현재 베이스라인(tier 판정): T1 0.96 · T2 0.80 · T3 1.00 · 전체 0.93** (20문항). 스톡 RAGAS의
 faithfulness/correctness는 결정론적-산술 답변에서 오보정되므로, 골든/산술 인지형 커스텀
@@ -136,6 +159,24 @@ pytest --run-llm       # 라이브 vLLM end-to-end 스모크 테스트까지 실
 
 최신순. 전체 이력은 `git log` 참고.
 
+- **데이터 버전 관리 + `data/` 재구성.** 각 코퍼스를 `data/<version>/`(raw/md/parsed/wiki)로
+  자기완결화. 정본 = `data/v0.1`, 신규 멀티덱 테스트셋 = `data/v0.2`. 평가 출력은 `data/eval/`,
+  그래프 산출물은 `data/graph/`, 로그는 `data/logs/`. 모든 경로는 `config.py` 접근자로 해석
+  (하드코딩 제거) — 빌드/서빙/평가는 env로 디렉터리만 지정.
+- **데이터셋(버전) API + 프런트 선택기.** `apps/agent/datasets.py` 레지스트리(`config.yaml`
+  `agent.datasets`) + 캐시 `WikiStore`. `/ask`·`/ask/stream`에 `dataset` 파라미터(둘 다 GET+Query;
+  `/ask` POST 제거), `/datasets` 엔드포인트, React `DatasetPicker`. 위키 디렉터리를 글로벌이 아닌
+  요청별 인자로 그래프에 스레딩 → **동시성 안전**.
+- **v0.2 비전-QA 디버깅 (0.22 → ~0.75).** 54문항 비전 정답셋(`eval/qa_eval.py`)으로 진단·수정:
+  (1) **에이전트 dedup 버그** — 모든 PDF 행이 같은 `[FDD<n>]` 태그라 `(page,cell)` 키가 시계열
+  전체를 한 행으로 붕괴 → 키를 `(page,cell,period,term)`로; auditor의 PDF-only/중복셀 경고 게이팅 +
+  synthesizer가 리포트 수치로 답하도록(확인불가 남발 제거). **0.22 → 0.54**. (2) **적재 수정** —
+  비전이 충실히 옮긴 표/매트릭스를 structurer가 떨어뜨리던 것을 **원문 그리드 그대로** 페이지에
+  싣고, figure 없는 페이지도 보존(드롭된 STELLA 페이지 복구), 표 헤더·행라벨을 alias로 → 라우팅
+  개선. **→ ~0.70**. (3) **구조도 인식** — 비전 프롬프트가 조직도/지배구조도를 `[다이어그램]`
+  엣지목록(출발→도착 : %·금액 + 색 범례)으로 추출, "페이지 N" 무의미 제목을 LLM title로 대체. (4)
+  **덱별 2층 인덱스** — PDF당 상세 설명(상층) + 페이지 ToC(하층). ⚠️ 공유 vLLM 비결정성으로 단일
+  런 비교는 노이즈가 큼(평균으로 비교).
 - **계산(compute) 노드 — 실험 후 리버트.** auditor와 synthesizer 사이에 결정론적 산술 노드를
   넣어 LLM은 산술 *식*만 제안하고 안전한 AST 계산기가 평가하도록 시도. 단위 테스트·프로덕션
   단발 질의(인건비/영업비용 비율)에서는 정확히 동작했으나, **교차검증 평가에서 회귀**: 전체

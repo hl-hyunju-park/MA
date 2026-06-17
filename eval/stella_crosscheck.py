@@ -27,15 +27,24 @@ from pathlib import Path
 from src.stella_kb import config
 
 ROOT = Path(__file__).resolve().parents[1]
-CASE = ROOT / "test_data" / "rag_test_dataset" / "stella_case"
+# The golden cross-check case (Excel + FDD PDF + 20 ground-truth questions). The dataset is
+# versioned under test_data/<ver>/; override CASE/questions/output via env so the same harness
+# can score a different build (e.g. the v0.2 wiki) without code edits.
+CASE = Path(os.environ.get(
+    "EVAL_CASE", str(ROOT / "test_data" / "v0.1" / "rag_test_dataset" / "stella_case")))
 TEST_XLSX = str(CASE / "files" / "RAG_0604_테스트용_Input.xlsx")
 TEST_PDF = str(CASE / "files" / "Stella_FDD_ExecSummary_p4-17.pdf")
-QUESTIONS = CASE / "ground_truth" / "cross_check_questions.jsonl"
+QUESTIONS = Path(os.environ.get("EVAL_QUESTIONS",
+                                str(CASE / "ground_truth" / "cross_check_questions.jsonl")))
 
-EVAL_DIR = ROOT / "data" / "eval_stella"
+# Output dir (answers/scores/report). Separate from the *target wiki* so we can evaluate a
+# prebuilt wiki (EVAL_WIKI) and write results elsewhere.
+EVAL_DIR = Path(os.environ.get("EVAL_OUT_DIR", str(ROOT / "data" / "eval" / "stella_crosscheck")))
 MD_DIR = EVAL_DIR / "md"
 PARSED_DIR = EVAL_DIR / "parsed"
-WIKI_DIR = EVAL_DIR / "wiki"
+# The wiki the agent is evaluated against. Default: the self-built Excel-only wiki under
+# EVAL_DIR; set EVAL_WIKI to score an already-built wiki (Excel+PDF), skipping `build`.
+WIKI_DIR = Path(os.environ.get("EVAL_WIKI", str(EVAL_DIR / "wiki")))
 PAGES_DIR = WIKI_DIR / "pages"
 INDEX_JSON = WIKI_DIR / "index.json"
 INDEX_MD = WIKI_DIR / "INDEX.md"
@@ -411,18 +420,22 @@ def judge() -> None:
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "all"
-    if cmd in ("build", "all"):
-        build()
-    if cmd == "reground":
-        reground()
-    if cmd == "recompile":
-        recompile()
-    if cmd == "build_pdf":
-        build_pdf()
-    if cmd == "buildall":
-        buildall()
-    if cmd in ("eval", "all"):
-        run_eval()
-    if cmd in ("judge", "all"):
-        judge()
+    # Accept several subcommands in order, e.g. `eval judge` (run then score the prebuilt
+    # EVAL_WIKI without rebuilding). Default `all` = build → eval → judge.
+    cmds = sys.argv[1:] or ["all"]
+    print(f"stella_crosscheck: case={CASE.name} wiki={WIKI_DIR} out={EVAL_DIR} cmds={cmds}")
+    for cmd in cmds:
+        if cmd in ("build", "all"):
+            build()
+        if cmd == "reground":
+            reground()
+        if cmd == "recompile":
+            recompile()
+        if cmd == "build_pdf":
+            build_pdf()
+        if cmd == "buildall":
+            buildall()
+        if cmd in ("eval", "all"):
+            run_eval()
+        if cmd in ("judge", "all"):
+            judge()
