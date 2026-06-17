@@ -95,15 +95,13 @@ def _ask(system: str, user: str, max_tokens: int) -> tuple[dict | None, str]:
 def _rec(sub: int, seq: int, agent: str, action: str, arg: str, thought: str) -> dict:
     """One trace record. ``sub``/``seq`` are the branch index and intra-branch order; the
     global ``step`` is reassigned in ``core`` after the parallel branches merge."""
-    return {"step": seq, "sub": sub, "agent": agent,
-            "action": action, "arg": arg, "thought": thought}
+    return {"step": seq, "sub": sub, "agent": agent, "action": action, "arg": arg, "thought": thought}
 
 
 # --------------------------------------------------------------------------- planner
 def planner_node(state: AgentState) -> AgentState:
     """Break the question into a minimal list of sub-questions (each fans out to a branch)."""
-    user = (f"INDEX:\n{state['index_md']}\n\nQuestion: {state['question']}\n\n"
-            "Return the plan JSON.")
+    user = f"INDEX:\n{state['index_md']}\n\nQuestion: {state['question']}\n\n" "Return the plan JSON."
     act, _ = _ask(PLANNER, user, 600)
     plan = [p for p in ((act or {}).get("plan") or []) if isinstance(p, dict) and p.get("ask")]
     if not plan:  # parse miss / empty → fall back to a single pass-through sub-question
@@ -115,8 +113,7 @@ def planner_node(state: AgentState) -> AgentState:
         print(f"[planner] {len(plan)} sub-question(s) → fan out")
     return {
         "plan": plan,
-        "trace": [_rec(-1, 0, "planner", "plan",
-                       f"{len(plan)} sub-Q", (act or {}).get("thought", ""))],
+        "trace": [_rec(-1, 0, "planner", "plan", f"{len(plan)} sub-Q", (act or {}).get("thought", ""))],
     }
 
 
@@ -142,17 +139,25 @@ def _route(sub: dict, tried: list, index: dict, index_md: str) -> tuple[list, di
     """Pick the wiki page(s) for one sub-question; on a trace sub-Q expand along the DAG."""
     hints = sub.get("hint_terms") or []
     lookups = "\n\n".join(lookup(index, t) for t in hints) if hints else "(no hint terms)"
-    avoid = (f"\nAlready tried for this sub-question and found insufficient — pick a "
-             f"DIFFERENT page unless re-reading is clearly justified: {tried}") if tried else ""
-    user = (f"INDEX:\n{index_md}\n\nLookup results:\n{lookups}\n\n"
-            f"Sub-question: {sub['ask']}{avoid}\n\nReturn the pages JSON.")
+    avoid = (
+        (
+            f"\nAlready tried for this sub-question and found insufficient — pick a "
+            f"DIFFERENT page unless re-reading is clearly justified: {tried}"
+        )
+        if tried
+        else ""
+    )
+    user = (
+        f"INDEX:\n{index_md}\n\nLookup results:\n{lookups}\n\n"
+        f"Sub-question: {sub['ask']}{avoid}\n\nReturn the pages JSON."
+    )
     act, _ = _ask(ROUTER, user, 400)
     valid = set(index.get("pages", {}).keys())
     by_norm = {re.sub(r"\s+", "", v).casefold(): v for v in valid}
     picks, seen = [], set()
-    for raw in (act or {}).get("pages") or []:        # tolerate [[wikilink]]/quote forms
+    for raw in (act or {}).get("pages") or []:  # tolerate [[wikilink]]/quote forms
         m = _match_page(raw, valid, by_norm)
-        if m and m not in seen:                       # resolve + dedup; drop hallucinations
+        if m and m not in seen:  # resolve + dedup; drop hallucinations
             seen.add(m)
             picks.append(m)
 
@@ -160,23 +165,23 @@ def _route(sub: dict, tried: list, index: dict, index_md: str) -> tuple[list, di
     if sub.get("mode") == "trace" and picks:
         direction = sub.get("direction", "down")
         chain = trace_links(index, picks[0], direction=direction)
-        chain_pages = [c["sheet"] for c in chain
-                       if c["has_page"] and c["sheet"] not in picks][:5]
+        chain_pages = [c["sheet"] for c in chain if c["has_page"] and c["sheet"] not in picks][:5]
         path = {"ask": sub["ask"], "direction": direction, "start": picks[0], "chain": chain}
         picks = picks + chain_pages
     return picks, path, (act or {}).get("thought", "")
 
 
-def _retrieve(ask: str, pages: list) -> tuple[list, str]:
+def _retrieve(ask: str, pages: list, wiki_dir: str | None = None) -> tuple[list, str]:
     """Open the pages and extract evidence — one LLM call PER PAGE, fanned out concurrently."""
     if not pages:
         return [], "(no pages selected)"
-    texts = {p: open_page(p) for p in pages}
+    texts = {p: open_page(p, wiki_dir) for p in pages}
 
     def extract(page: str) -> list:
-        user = (f"Sub-question: {ask}\n\nWIKI PAGE:\n{texts[page]}\n\n"
-                "Return the evidence JSON.")
-        act, _ = _ask(RETRIEVER, user, 800)
+        user = f"Sub-question: {ask}\n\nWIKI PAGE:\n{texts[page]}\n\n" "Return the evidence JSON."
+        # Pages now carry full raw grids (matrices/dense tables), so a multi-cell answer can
+        # need many evidence rows — give the extractor headroom so its JSON isn't truncated.
+        act, _ = _ask(system=RETRIEVER, user=user, max_tokens=1500)
         out = []
         for e in (act or {}).get("evidence") or []:
             if not isinstance(e, dict):
@@ -184,9 +189,16 @@ def _retrieve(ask: str, pages: list) -> tuple[list, str]:
             cell = str(e.get("cell", ""))
             celltok = cell.split("!")[-1]  # soft guard: the cell must be on THIS page
             if celltok and _cell_on_page(celltok, texts[page]):
-                out.append({"page": e.get("page", "") or page, "cell": cell,
-                            "term": e.get("term", ""), "period": str(e.get("period", "")),
-                            "value": str(e.get("value", "")), "ask": ask})
+                out.append(
+                    {
+                        "page": e.get("page", "") or page,
+                        "cell": cell,
+                        "term": e.get("term", ""),
+                        "period": str(e.get("period", "")),
+                        "value": str(e.get("value", "")),
+                        "ask": ask,
+                    }
+                )
         return out
 
     # branch threads spawn this pool too — the _LLM_SEM (not the worker count) is the real
@@ -197,7 +209,7 @@ def _retrieve(ask: str, pages: list) -> tuple[list, str]:
     return ev, f"{len(ev)} fact(s) from {pages}"
 
 
-def _ledger_evidence(picks: list, sub: dict) -> list:
+def _ledger_evidence(picks: list, sub: dict, wiki_dir: str | None = None) -> list:
     """For any ``*_거래내역`` page picked, run the deterministic ledger filter+sum.
 
     Transaction rows aren't on the wiki page (the time-series parse drops them), so the LLM
@@ -207,7 +219,7 @@ def _ledger_evidence(picks: list, sub: dict) -> list:
     out: list = []
     for p in picks:
         if isinstance(p, str) and p.endswith("_거래내역"):
-            out += query_ledger(p, kws, sub.get("ask", ""))
+            out += query_ledger(p, kws, sub.get("ask", ""), wiki_dir=wiki_dir)
     return out
 
 
@@ -215,8 +227,9 @@ def _verify(sub: dict, ev: list, path: dict | None) -> tuple[str, str]:
     """Judge whether the sub-question is answered. A traced chain is accepted as-is."""
     if sub.get("mode") == "trace" and path and path.get("chain"):
         return "ok", "provenance chain traced"
-    ev_txt = "\n".join(f"- {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, {e['page']})"
-                       for e in ev) or "(no evidence)"
+    ev_txt = (
+        "\n".join(f"- {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, {e['page']})" for e in ev) or "(no evidence)"
+    )
     user = f"Sub-question: {sub['ask']}\n\nEvidence:\n{ev_txt}\n\nReturn the verdict JSON."
     act, _ = _ask(VERIFIER, user, 300)
     verdict = ((act or {}).get("verdict") or ("ok" if ev else "gap")).lower()
@@ -230,7 +243,8 @@ def solve_node(state: AgentState, index: dict) -> AgentState:
     Runs as a parallel ``Send`` branch; returns only the ``operator.add`` channels, which
     LangGraph merges with the other branches at the barrier before the synthesizer."""
     sub = state["sub"]
-    index_md = state["index_md"]              # the router prompt needs the ToC
+    index_md = state["index_md"]  # the router prompt needs the ToC
+    wiki_dir = state.get("wiki_dir")  # per-request dataset dir (None → process default)
     idx = state.get("sub_idx", 0)
     max_steps = max(1, state.get("max_steps", 3))  # per-branch read budget (initial + retries)
     verbose = state.get("verbose")
@@ -239,7 +253,7 @@ def solve_node(state: AgentState, index: dict) -> AgentState:
     evidence: list = []
     paths: list = []
     trace: list = []
-    seen: set = set()                         # (page, cell) already captured — dedup retries
+    seen: set = set()  # (page, cell) already captured — dedup retries
     reads = seq = 0
     while True:
         picks, path, rthought = _route(sub, tried, index, index_md)
@@ -248,13 +262,17 @@ def solve_node(state: AgentState, index: dict) -> AgentState:
         if path:
             paths.append(path)
 
-        ev, summary = _retrieve(sub["ask"], picks)
-        led = _ledger_evidence(picks, sub)    # deterministic 거래내역 filter+sum (rows not on page)
+        ev, summary = _retrieve(sub["ask"], picks, wiki_dir)
+        led = _ledger_evidence(picks, sub, wiki_dir)  # deterministic 거래내역 filter+sum (rows not on page)
         if led:
             ev = ev + led
             summary += f"  +ledger({len(led)})"
-        for e in ev:                          # keep first sighting of each cell on this branch
-            key = (e["page"], e["cell"])
+        for e in ev:  # keep first sighting of each fact on this branch
+            # Dedup by the full fact grain, not just (page, cell): PDF pages tag EVERY row with
+            # the same page-level tag (e.g. [FDD8]), so a bare (page, cell) key collapses an
+            # entire time series (FY24…FY29) to one row. Include period+term so distinct rows
+            # that legitimately share a tag survive, while true re-reads still dedup.
+            key = (e["page"], e["cell"], e.get("period", ""), e.get("term", ""))
             if key not in seen:
                 seen.add(key)
                 evidence.append(e)
@@ -304,25 +322,33 @@ def auditor_node(state: AgentState, index: dict) -> AgentState:
     cell_asks: dict[tuple, set] = {}
     ask_ev: dict[str, list] = {}
     for e in ev:
-        cell_asks.setdefault((e["page"], e["cell"]), set()).add(e["ask"])
+        # Key by the full fact grain (page, cell, period, term), not just (page, cell). On PDF
+        # pages every row shares one page-level tag, so a coarse key falsely flags FY24 vs FY25
+        # of the SAME series as "the same cell cited twice". With period+term, only a genuine
+        # collision (one identical data point feeding two opposed asks) fires this caveat.
+        cell_asks.setdefault((e["page"], e["cell"], e.get("period", ""), e.get("term", "")), set()).add(e["ask"])
         ask_ev.setdefault(e["ask"], []).append(e)
-    for (page, cell), asks in cell_asks.items():
+    for (page, cell, _period, _term), asks in cell_asks.items():
         if len(asks) >= 2:
-            ref = cell if "!" in cell else f"{page}!{cell}"   # cell may already carry the sheet
+            ref = cell if "!" in cell else f"{page}!{cell}"  # cell may already carry the sheet
             caveats.append(
                 f"동일 출처 셀 {ref} 이(가) 서로 다른 하위질문의 근거로 중복 사용됨 "
                 f"({' / '.join(sorted(asks))}). 두 항목을 서로 다른 자료로 대사한 것이 아니므로 "
-                f"'일치/동일하다'라고 단정하지 말 것 — 한쪽 출처는 실제로 확인되지 않았을 수 있음.")
+                f"'일치/동일하다'라고 단정하지 말 것 — 한쪽 출처는 실제로 확인되지 않았을 수 있음."
+            )
 
-    # 2) a sub-question whose evidence is ENTIRELY from PDF/report pages. The report is the
-    #    thing being cross-checked, not the source of truth: a value on an FDD page is a
-    #    *claim*, never proof that the underlying (Excel) data exists for that period/scope.
+    # 2) a sub-question whose evidence is ENTIRELY from PDF/report pages. The PDF *is* the
+    #    source for "what does the report show?" questions, so this is NOT a reason to decline —
+    #    answer with the report figure, but flag that it's report-based (unit/asof/definition
+    #    may differ from the Excel source). It only becomes "확인 불가" if there is no evidence
+    #    at all (handled by check 3).
     for ask, items in ask_ev.items():
         if items and all(_is_pdf_page(pages.get(e["page"], {})) for e in items):
             caveats.append(
-                f"하위질문 '{ask}' 의 근거가 PDF/리포트 페이지에서만 나옴 — 원본(Excel) 자료로는 "
-                f"확인되지 않음. 리포트의 '주장'일 뿐, 원본 자료에 그 수치/시점이 존재한다는 "
-                f"증거가 아님.")
+                f"하위질문 '{ask}' 의 근거는 리포트(PDF) 페이지에서 나옴 — 리포트 기준 수치이므로 "
+                f"그대로 답하되, 엑셀 원본과 단위·정의·기준일이 다를 수 있음을 한 줄로 덧붙일 것. "
+                f"(원본 미확인을 이유로 '확인 불가' 처리하지 말 것.)"
+            )
 
     # 3) a planned sub-question that collected no evidence at all → that part is unverifiable.
     answered = set(ask_ev)
@@ -335,8 +361,7 @@ def auditor_node(state: AgentState, index: dict) -> AgentState:
     thought = f"{len(caveats)} caveat" if caveats else "이상 없음"
     return {
         "caveats": caveats,
-        "trace": [_rec(_SYNTH_ORDER - 1, 0, "auditor", "audit",
-                       f"{len(caveats)} caveat(s)", thought)],
+        "trace": [_rec(_SYNTH_ORDER - 1, 0, "auditor", "audit", f"{len(caveats)} caveat(s)", thought)],
     }
 
 
@@ -344,10 +369,10 @@ def auditor_node(state: AgentState, index: dict) -> AgentState:
 def synthesizer_node(state: AgentState) -> AgentState:
     """Write the final cited Korean answer from the accumulated evidence + traced paths."""
     ev = state.get("evidence", [])
-    ev_txt = "\n".join(
-        f"- [{e['ask']}] {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, page {e['page']})"
-        for e in ev
-    ) or "(no evidence gathered)"
+    ev_txt = (
+        "\n".join(f"- [{e['ask']}] {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, page {e['page']})" for e in ev)
+        or "(no evidence gathered)"
+    )
 
     # provenance chains traced over the formula DAG (sheet path; ⇒ marks a wiki page)
     path_txt = ""
@@ -361,11 +386,14 @@ def synthesizer_node(state: AgentState) -> AgentState:
     # deterministic audit flags (dup-cell-across-asks, pdf-only claims, unanswered sub-Qs) —
     # the synthesizer must honor these and not over-claim agreement past them.
     caveats = state.get("caveats", [])
-    caveat_block = ("\n\n감사 경고(AUDIT — 반드시 반영, 무시 금지):\n"
-                    + "\n".join(f"- {c}" for c in caveats)) if caveats else ""
+    caveat_block = (
+        ("\n\n감사 경고(AUDIT — 반드시 반영, 무시 금지):\n" + "\n".join(f"- {c}" for c in caveats)) if caveats else ""
+    )
 
-    user = (f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}"
-            f"{path_block}{caveat_block}\n\nWrite the final answer JSON.")
+    user = (
+        f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}"
+        f"{path_block}{caveat_block}\n\nWrite the final answer JSON."
+    )
     act, raw = _ask(SYNTHESIZER, user, 700)
     text = ((act or {}).get("text") or raw or "").strip() or "(빈 답변)"
     return {
