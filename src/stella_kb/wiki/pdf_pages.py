@@ -32,6 +32,7 @@ from ..llm import _json_span, chat
 from ..prompts import load as load_prompt
 
 _SYSTEM = load_prompt("pdf_page_system")
+_DOC_SYSTEM = load_prompt("pdf_doc_system")
 SECTION = "FDD 요약 보고서 (PDF)"
 _HEADING = re.compile(r"^#{1,3}\s+(.*\S)\s*$", re.M)
 # FDD pages carry an "Executive Summary | <topic>" breadcrumb — match it anywhere (heading or
@@ -128,8 +129,11 @@ def _xrefs(entry: dict, index: dict, cap: int = 6) -> list[str]:
         if e.get("source") != "PDF" and str(e.get("section", "")).startswith("Biz Plan"):
             fund_pages.setdefault(e.get("group"), []).append(nm)
 
-    terms = " ".join(it.get("label") or "" for it in (entry.get("items") or [])) \
-        + " " + " ".join(entry.get("aliases") or [])
+    terms = (
+        " ".join(it.get("label") or "" for it in (entry.get("items") or []))
+        + " "
+        + " ".join(entry.get("aliases") or [])
+    )
     blob_flat, blob_nums = _norm(terms), set(_FUND_REF.findall(terms))
     out: list[str] = []
     for group, fpages in fund_pages.items():
@@ -157,7 +161,48 @@ def structure_section(label: str, text: str, timeout: float = 600.0) -> dict:
     return obj
 
 
-def _page_md(name: str, tag: str, label: str, s: dict, xref: list[str] | None = None) -> str:
+_NUMERIC = re.compile(r"^[\d\s.,%xX()\-+]+$")
+
+
+def _extract_tables(md: str) -> list[str]:
+    """Pull every markdown table block (>=2 consecutive pipe-rows) out of the vision page text.
+
+    The vision parser transcribes charts/matrices/tables faithfully as pipe-rows, but the LLM
+    structurer collapses 2-axis grids to row/column aggregates and drops cells it can't fit the
+    ``{label,period,value}`` schema. Carrying the raw blocks onto the page verbatim keeps every
+    cell (e.g. a 5×5 WACC×PGR heatmap, a 3-D loan matrix) retrievable."""
+    blocks, cur = [], []
+    for ln in md.splitlines():
+        if ln.count("|") >= 2:
+            cur.append(ln.rstrip())
+        else:
+            if len(cur) >= 2:
+                blocks.append("\n".join(cur))
+            cur = []
+    if len(cur) >= 2:
+        blocks.append("\n".join(cur))
+    return blocks
+
+
+def _table_terms(tables: list[str], cap: int = 24) -> list[str]:
+    """Non-numeric cell texts (column headers + row labels) from the raw tables → alias terms,
+    so a recovered table page is routable by its headers/entities (담보유형, peer names, …)."""
+    terms: list[str] = []
+    seen: set = set()
+    for tbl in tables:
+        for row in tbl.splitlines():
+            for c in row.split("|"):
+                c = re.sub(r"\s+", " ", c).strip(" *`")
+                if 2 <= len(c) <= 30 and "--" not in c and not _NUMERIC.match(c):
+                    k = _norm(c)
+                    if k and k not in seen:
+                        seen.add(k)
+                        terms.append(c)
+    return terms[:cap]
+
+
+def _page_md(name: str, tag: str, label: str, s: dict, xref: list[str] | None = None,
+             body: str | None = None) -> str:
     title = s.get("title") or label
     aliases = [a for a in (s.get("aliases") or []) if a]
     out = ["---", "source: PDF", f"page: {name}", f"tag: {tag}", f"section: {label}"]
@@ -183,16 +228,30 @@ def _page_md(name: str, tag: str, label: str, s: dict, xref: list[str] | None = 
     ]
     for f in s.get("figures") or []:
         out.append(f"| {f.get('label','')} | {f.get('period','') or ''} | {f.get('value','')} [{tag}] |")
-    out += ["", "## Links", ""]
+    # Full vision markdown verbatim — every cell, [그래프] block, and [다이어그램] edge-list the
+    # structurer didn't lift (matrices, dense tables, org/structure diagrams). The marker line
+    # puts `[tag]` on the page so the retriever can cite any of these values.
+    if body and body.strip():
+        out += ["", "## 원문 (vision 원문 — 모든 표·그래프·다이어그램)", "",
+                f"> 아래 원문의 모든 수치·관계 출처: `[{tag}]` (리포트 페이지 원문).", "",
+                body.strip(), ""]
+    out += ["## Links", ""]
     if xref:
         out.append("- 엑셀 원천 (교차검증 대상): " + ", ".join(f"[[{x}]]" for x in xref))
     out.append("- PDF 요약 — 동일 항목의 **엑셀 원천 페이지와 교차검증** 대상 (단위·기준일 차이 주의).")
     return "\n".join(out) + "\n"
 
 
-def build_pages(pdf_path: str, pages_dir: Path, structurer=structure_section,
-                index: dict | None = None) -> tuple[dict, dict, dict]:
+def build_pages(
+    pdf_path: str, pages_dir: Path, structurer=structure_section, index: dict | None = None, doc: str | None = None
+) -> tuple[dict, dict, dict]:
     """Build PDF wiki pages and the index pieces to merge into an existing wiki index.
+
+    ``doc`` namespaces the pages to one source report (e.g. ``"CAESAR"``). When several FDD
+    PDFs are ingested into one wiki, their per-PDF ``FDD{n}`` numbering and labels collide
+    (two decks both have an ``FDD6 — Valuation Summary``); prefixing the page name and ToC
+    group with ``[{doc}]`` keeps names unique **and** makes each page's deal identity explicit.
+    ``doc=None`` (single-PDF build) preserves the original ``FDD{n} — {label}`` naming.
 
     Returns ``(pages_entries, alias_additions, tree_section)`` and writes ``<name>.md`` into
     ``pages_dir``. One page per PDF page; each tagged ``FDD<n>`` for provenance. When ``index``
@@ -213,23 +272,39 @@ def build_pages(pdf_path: str, pages_dir: Path, structurer=structure_section,
     tree: dict[str, dict] = {SECTION: {}}
     for i, (label, text, s) in enumerate(structured, 1):  # number by section position (stable)
         figs = s.get("figures") or []
-        if not figs and not (s.get("aliases") or []):
-            continue  # nothing structured (cover/divider section) — keeps the FDD{i} slot
-        tag = f"FDD{i}"
-        name = f"FDD{i} — {label}"
+        raw_tables = _extract_tables(text)            # the page's full grids, verbatim
         page_aliases = [a for a in (s.get("aliases") or []) if a]
+        page_aliases += [t for t in _table_terms(raw_tables) if _norm(t) not in
+                         {_norm(a) for a in page_aliases}]   # + header/row-label terms
+        # Only a genuinely empty page (no figures, no aliases, no tables — a cover/divider) is
+        # dropped. Dense-table pages the structurer couldn't parse (Key Financial Information,
+        # GPC peer table) used to vanish here; now they're kept via their raw tables/terms.
+        if not figs and not page_aliases and not raw_tables:
+            continue
+        # When the breadcrumb regex missed and the label fell back to "페이지 N", use the LLM's
+        # structured title instead — an uninformative "페이지 N" page name/ToC entry is unroutable
+        # (the router can't tell it's the Corporate Structure page from "페이지 2").
+        if re.fullmatch(r"페이지 \d+", label) and s.get("title"):
+            label = re.sub(r"\s+", " ", s["title"]).strip()
+        tag = f"FDD{i}"
+        # A label can carry '/' (e.g. a "(2/2)" continuation marker); '/' in a page name
+        # breaks the filesystem write and the page-key↔filename match. Sanitize like the
+        # Excel side (dump_md/parse_llm use ``.replace('/', '_')``) so name, file stem, index
+        # key and [[wikilinks]] all stay consistent. ``doc`` (multi-PDF) prefixes the name +
+        # ToC group so two decks' identically-labelled pages don't collide / overwrite.
+        prefix = f"[{doc}] " if doc else ""
+        name = f"FDD{i} — {prefix}{label}".replace("/", "_")
+        group = f"{prefix}{label}"
         labels = [f.get("label") for f in figs if f.get("label")]
         entry = {
             "sheet": name,
             "title": s.get("title") or label,
-            "desc": (s.get("summary") or "").split(". ")[0][:120] or None,
+            "desc": (s.get("summary") or "").split(". ")[0][:120] or label,
             "section": SECTION,
-            "group": label,
-            "kind": "pdf 요약",
-            "case": None,
-            "unit": None,
-            "period": "Dec-20–Jun-24",
-            "data_status": None,
+            "group": group,
+            # The Stella deck's reporting window; unknown/mixed across decks in a multi-PDF
+            # build, so don't stamp it on other deals' pages.
+            "period": None if doc else "Dec-20–Jun-24",
             "n_items": len(figs),
             "has_page": True,
             "aliases": page_aliases,
@@ -240,22 +315,61 @@ def build_pages(pdf_path: str, pages_dir: Path, structurer=structure_section,
         }
         entry["xref"] = _xrefs(entry, index) if index else []
         (pages_dir / f"{name}.md").write_text(
-            _page_md(name, tag, label, s, entry["xref"]), encoding="utf-8")
+            _page_md(name, tag, label, s, entry["xref"], text), encoding="utf-8")
         entries[name] = entry
         for term in page_aliases + labels:
             aliases.setdefault(_norm(term), []).append({"page": name, "cell": tag, "term": term})
-        tree[SECTION].setdefault(label, []).append(name)
+        tree[SECTION].setdefault(group, []).append(name)
 
     return entries, aliases, tree
 
 
+def _fdd_num(name: str) -> int:
+    m = re.match(r"FDD(\d+)", name)
+    return int(m.group(1)) if m else 0
+
+
+def build_document(doc: str, entries: dict) -> dict:
+    """Build the per-PDF **document node** — the two-layer index for one source deck.
+
+    Upper layer: a detailed, LLM-synthesized description of the whole report (what company/deal,
+    which sections, what chart/matrix types, key figures) — so the router can pick the right
+    *document* from a question that only names the project. Lower layer: a table of contents of
+    the deck's pages (FDD#, title, one-line summary) — to then pick the right *page*. The
+    description is grounded in the deck's own page titles/summaries/figure labels (no new facts).
+    """
+    items = sorted(entries.items(), key=lambda kv: _fdd_num(kv[0]))
+    toc = [{"page": n, "title": e.get("title") or n, "summary": e.get("desc") or ""}
+           for n, e in items]
+    digest = "\n".join(
+        f"- {e.get('title') or n}: {e.get('desc') or ''}"
+        + (f"  [항목: {', '.join((it.get('label') or '') for it in (e.get('items') or [])[:8])}]"
+           if e.get("items") else "")
+        for n, e in items)
+    title, description = f"{doc} 보고서", ""
+    try:
+        raw = chat(
+            [{"role": "system", "content": _DOC_SYSTEM},
+             {"role": "user", "content": f"보고서(프로젝트): {doc}\n\n페이지 목록:\n{digest}\n\nJSON:"}],
+            max_tokens=1200, timeout=300)
+        obj = _json_span(raw, "{", "}")
+        if isinstance(obj, dict):
+            title = obj.get("title") or title
+            description = obj.get("description") or ""
+    except Exception:  # noqa: BLE001 — a deck still gets a ToC even if the description fails
+        pass
+    return {"doc": doc, "title": title, "n_pages": len(toc),
+            "description": description, "toc": toc}
+
+
 def strip_pdf(index: dict) -> dict:
     """Remove all PDF artifacts from a wiki index (pages, their alias entries, the PDF tree
-    section) so a rebuild replaces cleanly instead of accumulating stale pages."""
+    section, the per-deck document nodes) so a rebuild replaces cleanly."""
     pdf = {n for n, e in index["pages"].items() if e.get("source") == "PDF"}
     for n in pdf:
         index["pages"].pop(n, None)
     index["tree"].pop(SECTION, None)
+    index.pop("documents", None)
     ai = index["alias_index"]
     for key in list(ai):
         kept = [h for h in ai[key] if h["page"] not in pdf]
@@ -288,13 +402,15 @@ if __name__ == "__main__":
     import json
     import sys
 
+    from ..config import wiki_pdf_dir
     from .index import OUT_JSON, OUT_MD, PAGES_DIR, render_md
 
-    pdfs = [str(p) for p in sorted(Path("data/raw").glob("*.pdf"))]
+    pdf_dir = wiki_pdf_dir()
+    pdfs = [str(p) for p in sorted(pdf_dir.glob("*.pdf"))]
     if len(sys.argv) > 1:  # explicit path(s) override the glob
         pdfs = sys.argv[1:]
     if not pdfs:
-        print("pdf_pages: no data/raw/*.pdf — skipping PDF ingest.")
+        print(f"pdf_pages: no {pdf_dir}/*.pdf — skipping PDF ingest.")
         sys.exit(0)
     if not OUT_JSON.exists():
         sys.exit(f"pdf_pages: {OUT_JSON} not found — run the index stage (4) first.")
@@ -303,11 +419,19 @@ if __name__ == "__main__":
         stale.unlink()
     index = json.loads(OUT_JSON.read_text(encoding="utf-8"))
     index = strip_pdf(index)  # drop any prior PDF entries first
+    # Namespace pages by source report only when ingesting several PDFs — a single-PDF build
+    # keeps the original FDD{n} — {label} names. ``CAESAR_pages.pdf`` -> doc ``CAESAR``.
+    multi = len(pdfs) > 1
+    documents: dict = {}
     for pdf in pdfs:
-        print(f"pdf_pages: ingest {pdf}")
-        entries, alias_add, tree_add = build_pages(pdf, PAGES_DIR, index=index)
+        doc = re.sub(r"[_-]?pages$", "", Path(pdf).stem, flags=re.I)
+        name_doc = doc if multi else None      # namespace page NAMES only in the multi-deck case
+        print(f"pdf_pages: ingest {pdf}  (doc={doc})")
+        entries, alias_add, tree_add = build_pages(pdf, PAGES_DIR, index=index, doc=name_doc)
         merge_into_index(index, entries, alias_add, tree_add)
-        print(f"   built {len(entries)} PDF page(s): {list(entries)}")
+        documents[doc] = build_document(doc, entries)   # two-layer: deck description + ToC
+        print(f"   built {len(entries)} PDF page(s) + document node '{documents[doc]['title']}'")
+    index["documents"] = documents
 
     OUT_JSON.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     OUT_MD.write_text(render_md(index), encoding="utf-8")

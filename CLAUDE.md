@@ -58,36 +58,42 @@ Patterns we adopt:
 
 ## Layout & commands
 
+**`data/` is versioned** — each corpus version is self-contained under `data/<version>/`; all of
+it is gitignored (regenerable). Code resolves paths through `config.py` (env > config.yaml >
+default), so a version is built/served/evaluated by pointing the env at its dir, not editing code.
+
 ```
-data/                     # the workbook lives here (the "raw"/corpus input)
+data/                       # versioned build artifacts + corpora (gitignored)
+  v0.1/ { raw md parsed wiki derived }   # canonical 63-sheet Centroid model — the DEFAULT dataset
+  v0.2/ { raw md parsed wiki }           # multi-deck test corpus: Excel ledgers + CAESAR/LIFE/STELLA FDD decks
+  eval/ { stella_crosscheck/, v0.2/{final,multi} }   # eval outputs
+  graph/ { stella_graph.json, stella_semantic.json } # graph-paradigm artifacts
+  logs/
 src/stella_kb/
-  __init__.py             # WORKBOOK path constant (resolves data/ regardless of cwd)
-  llm.py                  # OpenAI-compatible client (local vLLM); whitelist-guarded term->Metric  (shared)
-  prompts/                # prompt templates, one .txt per use  (shared)
-  graph/                  # property-graph KB paradigm
-    extract.py            # workbook -> cell-level formula dependency DAG (DEPENDS_ON edges)
-    semantic.py           # cell DAG -> semantic property graph (Section/Sheet/Fund/Entity)  (was graph.py)
-    metrics.py            # curated cell->Metric anchors (Metric/Period + DRIVES/HAS_VALUE/...)
-    query.py              # query layer: resolve -> graph traversal -> cited NL answer
-  wiki/                   # vectorless wiki KB paradigm  (dump_md -> parse_llm -> compile -> index)
-    dump_md.py            # workbook sheet -> Markdown grid (pipeline stage 1; data/md/)
-    dump_sheet.py         # dump any sheet's cells (value + formula) for analysis
-    parse_llm.py          # LLM parse pass: grid -> grounded structural schema (data/parsed/)
-    compile.py            # compile wiki pages from parsed schema (data/wiki/pages/)  (was wiki.py)
-    index.py              # build INDEX.md + index.json routing table
-apps/agent/               # query agent (separate from the build pipeline above)
-  core.py                 # public API: run / ask / stream_run
-  io/tools.py             # deterministic wiki access: load_index, lookup, open_page, trace_links (provenance DAG hop)
-  graph/                  # LangGraph: state.py (AgentState), nodes.py, build.py (build_app)
-  api/                    # FastAPI: server.py (/ask, /ask/stream SSE) + schema/ (pydantic)
-  prompts/                # agent prompt(s), Korean-steered
-frontend/                 # web UI for the agent (NOT under apps/; node toolchain, gitignored build)
-  src/                    # React + TS chat app (Vite): App.tsx, api.ts (SSE client), components/
-  vite.config.ts          # dev server :5173, proxies /ask /ask/stream /health -> backend :8000
-  web/index.html          # zero-build single-file HTML fallback; FastAPI serves it at / and /ui
-scripts/                  # shell launchers only (.sh): run_pipeline.sh, run_server.sh
+  __init__.py             # ROOT/DATA_DIR + WORKBOOK/FULL_WORKBOOK (canonical = data/v0.1/raw/)
+  config.py               # central config (env > config.yaml > default); wiki/agent/eval PATH accessors
+  llm.py                  # OpenAI-compatible client (local vLLM); whitelist-guarded term->Metric
+  prompts/                # build-pipeline prompts (pdf_page_system, pdf_doc_system, ...)
+  graph/                  # property-graph KB paradigm (extract / semantic / metrics / lift / query / viz)
+  wiki/                   # vectorless wiki paradigm (dump_md -> parse_llm -> compile -> index -> pdf_pages)
+    pdf_pages.py          # PDF ingest: vision describe -> structured figures + RAW grids/diagrams on page;
+                          #   per-deck two-layer "document" node (description + ToC); keeps no-figure pages
+  parsers/pdf/            # vision PDF parser (describe/vision/tables/router); emits tables + [그래프]/[다이어그램]
+apps/agent/               # query agent (separate from the build pipeline)
+  core.py                 # public API: run / ask / answer(router) / stream_run  — takes a dataset `store`
+  datasets.py             # dataset (wiki VERSION) registry + cached WikiStore  (id -> wiki dir)
+  io/tools.py             # deterministic wiki access (lookup/open_page/query_ledger/trace_links); per-request wiki_dir
+  graph/                  # LangGraph: state/nodes/build  (wiki_dir threaded through state, not a global)
+  api/                    # FastAPI: /ask (GET) · /ask/stream (GET SSE) · /datasets · /health  + schema/ (pydantic)
+  dart_agent.py           # DART tool-calling backend (public-company questions)
+frontend/                 # React+Vite chat UI; components/DatasetPicker selects wiki version; proxies API -> :5001
+eval/
+  stella_crosscheck.py    # v0.1 tier-based PDF×Excel cross-check (20 Q)
+  qa_eval.py              # v0.2 vision-QA, rubric-based judge (54 Q over the FDD decks)
+  ragas_eval.py
+config.yaml               # central config incl. `agent.datasets` version registry
+scripts/                  # run_pipeline.sh · run_server.sh · run_eval.sh · run_qa_eval.sh · serve_*.sh
 docs/workbook_analysis.md # per-sheet M&A analysis of all 63 sheets (+ sheet-name taxonomy)
-requirements.txt          # openpyxl, pandas, networkx, langgraph, fastapi, uvicorn
 .venv/                    # Python 3.11 venv
 ```
 
@@ -95,15 +101,24 @@ requirements.txt          # openpyxl, pandas, networkx, langgraph, fastapi, uvic
 source .venv/bin/activate                 # or call .venv/bin/python directly
 pip install -r requirements.txt           # one-time
 python -m src.stella_kb.graph.extract     # parse formulas -> ~13.7k cells, ~74k edges
-python -m src.stella_kb.graph.metrics     # cell->Metric layer alone -> 102 metrics, 14 periods
-python -m src.stella_kb.graph.semantic    # full semantic graph -> data/stella_graph.json
+python -m src.stella_kb.graph.semantic    # full semantic graph -> data/graph/stella_graph.json
 python -m src.stella_kb.graph.query       # ask questions: resolve -> traverse -> cited answer
 ```
 
 ```bash
+# Build a corpus version into its own tree (default writes data/v0.1). For a new version,
+# point the env at its dir — no code edits (run_pipeline.sh inherits the exported env):
+MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=data/v0.2 MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh
+# then register it in config.yaml `agent.datasets` so the API/UI can select it.
+
 # web UI (two processes): FastAPI backend + Vite frontend
-scripts/run_server.sh                     # backend on :8000 (also serves the HTML fallback at /ui)
-cd frontend && npm install && npm run dev # React app on :5173, proxies the API  (npm run build for prod)
+scripts/run_server.sh                     # backend on :5001 (HTML fallback at /ui); /datasets lists versions
+cd frontend && npm install && npm run dev # React app on :5173 (DatasetPicker), proxies the API
+#   query a specific version:  GET /ask?question=...&dataset=v0.2   (POST removed; both endpoints are GET+Query)
+
+# evaluate a built wiki against a ground-truth set (rubric/tier judge):
+scripts/run_qa_eval.sh                    # v0.2 vision-QA (54 Q)  -> data/eval/v0.2
+scripts/run_eval.sh                       # v0.1 cross-check (20 Q) against a chosen wiki
 ```
 
 Tests live in `tests/` (`pytest` from the repo root). The default run is **deterministic +
@@ -120,6 +135,44 @@ pytest --run-llm       # also run the live-vLLM end-to-end smoke tests
 Both `__main__` entry points also have a smoke-print; run them from the repo root (`MA/`) so
 `src.` resolves. The reference repos use `uv` — translate their `uv run`/`uv add` to
 `python`/`pip install`.
+
+## Datasets & versioning
+
+A **dataset** = one built wiki for a corpus version, self-contained under `data/<version>/wiki`.
+The agent serves any registered dataset; selection is **per request**, concurrency-safe.
+
+- **Registry** — `config.yaml` `agent.datasets` maps a safe id → wiki dir (`v0.1: data/v0.1/wiki`,
+  `v0.2: data/v0.2/wiki`); `apps/agent/datasets.py` resolves + caches a `WikiStore` (index +
+  INDEX.md, keyed by mtime). `default` falls back to `agent_wiki_dir()` (= `data/v0.1/wiki`).
+- **API** — `GET /ask?question=…&dataset=v0.2` and `GET /ask/stream?…&dataset=…` (both endpoints
+  are GET with `Query()` params — `/ask` POST was removed; SSE is `EventSource`-driven). `GET
+  /datasets` lists registered + built ids. Unknown id → 422, registered-but-unbuilt → 503. The
+  React `DatasetPicker` populates from `/datasets`.
+- **Concurrency-safe by construction** — the chosen `wiki_dir` is threaded through
+  `AgentState → Send payload → solve_node → open_page/query_ledger` (a per-request arg), never a
+  process global, so two requests can target different versions at once.
+- **Add a version**: build into `data/<v>/` (`MNA_WIKI_DATA=data/<v> … run_pipeline.sh`), then add
+  one line to `config.yaml` `agent.datasets`. No code changes.
+
+The two corpora today: **v0.1** = the canonical 63-sheet Centroid model (Excel + the Stella FDD
+ExecSummary). **v0.2** = a multi-deck vision test set — the same Centroid ledgers plus three FDD
+decks (CAESAR/LIFE/STELLA), ingested as namespaced `FDD<n> — [DECK] …` pages with a per-deck
+two-layer index (deck description + ToC). PDF ingest (`pdf_pages.py`) now also carries the **raw
+vision grids** (matrices/dense tables) and **`[다이어그램]` edge-lists** (box→box, %/amount,
+legend) onto each page, and keeps a page even when the structurer found no figures.
+
+### Evaluation
+
+Two ground-truth sets under `test_data/`, judged by the shared vLLM, written to `data/eval/`:
+- **`eval/stella_crosscheck.py`** (v0.1) — 20 tier-1/2/3 PDF×Excel cross-check questions.
+- **`eval/qa_eval.py`** (v0.2) — 54 **vision-only** questions over the FDD decks
+  (`test_data/v0.2/ground_truth/qa.jsonl`), scored **rubric-based** (1.0/0.5/0.0) with breakdowns
+  by doc / capability (C1–C5) / visual_type. Run via `scripts/run_qa_eval.sh`.
+
+⚠️ **The eval is noisy.** The shared vLLM is non-deterministic even at temperature 0 (continuous
+batching), and a wiki rebuild re-runs `structure_section` per page — so single-run score deltas
+under ~±0.1 are not signal. Compare **means over several runs** (the multi-run dir), and hold the
+built pages fixed when A/B-testing an agent-only change.
 
 ## Data source: the workbook
 
@@ -204,7 +257,7 @@ encodes — keep them in mind for any new extraction:
   read from the frozen `DCF 장표 #1_MGT` exhibit (identical layout to the DTT exhibit), with
   `cell_mgt` for provenance. So "compare MGT vs DTT equity value" answers from one metric
   (206,131 vs 120,696). **Export to disk** is wired: `python -m src.stella_kb.graph.semantic`
-  writes `data/stella_graph.json` (node-link JSON; `export()` also does GraphML). Metric layer
+  writes `data/graph/stella_graph.json` (node-link JSON; `export()` also does GraphML). Metric layer
   ≈ **102 metrics**.
 - **Query layer (v2, multi-hop) built**: `query.py` does resolve → traverse → synthesize.
   `resolve_all()` maps a question to the **set** of focal Metric ids via `llm.resolve_metrics`
@@ -213,7 +266,7 @@ encodes — keep them in mind for any new extraction:
   evidence is gathered deterministically and is itself multi-hop (`drivers` walks the
   DRIVES/ASSUMPTION_OF chain to depth 6); `series`/`source_cells`/`evidence` carry source
   cells; the LLM only writes one joint prose answer over all blocks and must cite cells.
-  Answers KO and EN. Loads `data/stella_graph.json`.
+  Answers KO and EN. Loads `data/graph/stella_graph.json`.
 - **Not yet built**: dual-case for the **per-year series** (the DCF cashflow rows EBIT/EBITDA/
   FCFF and the revenue series still read only the active DTT case — only the DCF-summary
   *scalars* and per-fund carry carry both cases so far; the two exhibits' projection windows
@@ -223,7 +276,7 @@ encodes — keep them in mind for any new extraction:
   (the OpenKB approach, seeded by the sheet-name taxonomy in `docs/workbook_analysis.md`)
   can extend coverage without touching graph construction. `metrics.py` values come from
   openpyxl's cached results, so the **cached-value caveat applies** — recalc for fresh
-  numbers. The `data/stella_graph.json` export is a regenerable build artifact (don't
+  numbers. The `data/graph/stella_graph.json` export is a regenerable build artifact (don't
   commit it; commit `src/`).
 
 ## Retrieval strategy: vectorless by default
