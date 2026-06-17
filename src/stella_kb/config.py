@@ -108,6 +108,12 @@ def pdf_page_png_cache() -> str:
     return get("cache", "pdf_page_png", env="PDF_PAGE_PNG_CACHE", default=".cache/pages")
 
 
+def pdf_structure_cache() -> str:
+    """Disk cache for the PDF *structuring* LLM calls (structure_section / build_document), so a
+    wiki rebuild is deterministic and doesn't perturb eval results."""
+    return get("cache", "pdf_structure", env="PDF_STRUCTURE_CACHE", default=".cache/pdf_structure")
+
+
 def dart_mcp_url() -> str:
     return get("dart", "mcp_url", env="DART_MCP_URL", default="http://127.0.0.1:8002/sse")
 

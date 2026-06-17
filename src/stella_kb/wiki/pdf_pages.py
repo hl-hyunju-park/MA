@@ -28,7 +28,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ..llm import _json_span, chat
+from ..config import pdf_structure_cache
+from ..llm import _json_span, cached_chat
 from ..prompts import load as load_prompt
 
 _SYSTEM = load_prompt("pdf_page_system")
@@ -144,11 +145,12 @@ def _xrefs(entry: dict, index: dict, cap: int = 6) -> list[str]:
 
 def structure_section(label: str, text: str, timeout: float = 600.0) -> dict:
     """LLM-structure one section's markdown; drop ungrounded figures. ``{}`` if unusable."""
-    raw = chat(
+    raw = cached_chat(
         [
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": f"PDF 섹션: {label!r}\n\n{text}\n\nJSON:"},
         ],
+        cache_dir=pdf_structure_cache(),
         max_tokens=4500,
         timeout=timeout,
     )
@@ -348,10 +350,13 @@ def build_document(doc: str, entries: dict) -> dict:
         for n, e in items)
     title, description = f"{doc} 보고서", ""
     try:
-        raw = chat(
+        raw = cached_chat(
             [{"role": "system", "content": _DOC_SYSTEM},
              {"role": "user", "content": f"보고서(프로젝트): {doc}\n\n페이지 목록:\n{digest}\n\nJSON:"}],
-            max_tokens=1200, timeout=300)
+            cache_dir=pdf_structure_cache(),
+            max_tokens=1200,
+            timeout=300,
+        )
         obj = _json_span(raw, "{", "}")
         if isinstance(obj, dict):
             title = obj.get("title") or title

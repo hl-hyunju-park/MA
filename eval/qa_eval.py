@@ -28,9 +28,8 @@ from pathlib import Path
 from src.stella_kb import config
 
 ROOT = Path(__file__).resolve().parents[1]
-QUESTIONS = Path(os.environ.get(
-    "EVAL_QA", str(ROOT / "test_data" / "v0.2" / "ground_truth" / "qa.jsonl")))
-DATASET = os.environ.get("EVAL_DATASET", "v0.2")   # which built wiki the agent reads
+QUESTIONS = Path(os.environ.get("EVAL_QA", str(ROOT / "test_data" / "v0.2" / "ground_truth" / "qa.jsonl")))
+DATASET = os.environ.get("EVAL_DATASET", "v0.2")  # which built wiki the agent reads
 EVAL_DIR = Path(os.environ.get("EVAL_OUT_DIR", str(ROOT / "data" / "eval" / "v0.2")))
 ANSWERS_JSON = EVAL_DIR / "answers.json"
 SCORES_JSON = EVAL_DIR / "scores.json"
@@ -43,21 +42,35 @@ def load_questions() -> list[dict]:
 
 # --- stage 1: run every question through the agent against the chosen wiki ---------------
 
+
 def _answer_one(q: dict, app, store) -> dict:
     from apps.agent import core
 
     try:
         res = core.run(q["question"], max_steps=3, app=app, store=store)
         ans = res["answer"]
-        pages = sorted({e.get("arg") for e in res.get("trace", [])
-                        if e.get("action") == "route" and e.get("arg") not in (None, "(none)")})
+        pages = sorted(
+            {
+                e.get("arg")
+                for e in res.get("trace", [])
+                if e.get("action") == "route" and e.get("arg") not in (None, "(none)")
+            }
+        )
     except Exception as e:  # noqa: BLE001 — record the failure, keep going
         ans, pages = f"[ERROR] {type(e).__name__}: {e}", []
     print(f"--- {q['id']} ({q.get('doc')}/{q.get('capability')})  {ans[:70].replace(chr(10), ' ')}")
-    return {"id": q["id"], "doc": q.get("doc"), "capability": q.get("capability"),
-            "visual_type": q.get("visual_type"), "difficulty": q.get("difficulty"),
-            "question": q["question"], "ground_truth": q.get("ground_truth", ""),
-            "rubric": q.get("rubric", ""), "agent_answer": ans, "pages_opened": pages}
+    return {
+        "id": q["id"],
+        "doc": q.get("doc"),
+        "capability": q.get("capability"),
+        "visual_type": q.get("visual_type"),
+        "difficulty": q.get("difficulty"),
+        "question": q["question"],
+        "ground_truth": q.get("ground_truth", ""),
+        "rubric": q.get("rubric", ""),
+        "agent_answer": ans,
+        "pages_opened": pages,
+    }
 
 
 def run_eval(workers: int = 8) -> None:
@@ -67,14 +80,18 @@ def run_eval(workers: int = 8) -> None:
 
     store = datasets.get_store(DATASET)
     if not store.exists():
-        sys.exit(f"qa_eval: dataset {DATASET!r} not built ({store.index_json} missing). "
-                 "Build it first (run_pipeline.sh with MNA_WIKI_DATA=...).")
+        sys.exit(
+            f"qa_eval: dataset {DATASET!r} not built ({store.index_json} missing). "
+            "Build it first (run_pipeline.sh with MNA_WIKI_DATA=...)."
+        )
     qs = load_questions()
     workers = min(workers, len(qs))
-    nodes.set_fanout(config.eval_fanout(default=workers))   # don't starve the workers
-    app = build_app(store.index)                            # compile once, reuse across items
-    print(f"answering {len(qs)} questions · dataset={DATASET} ({len(store.index['pages'])} pages) "
-          f"· {workers} workers")
+    nodes.set_fanout(config.eval_fanout(default=workers))  # don't starve the workers
+    app = build_app(store.index)  # compile once, reuse across items
+    print(
+        f"answering {len(qs)} questions · dataset={DATASET} ({len(store.index['pages'])} pages) "
+        f"· {workers} workers"
+    )
     with ThreadPoolExecutor(max_workers=workers) as ex:
         results = list(ex.map(lambda q: _answer_one(q, app, store), qs))
     order = {q["id"]: i for i, q in enumerate(qs)}
@@ -106,18 +123,25 @@ def _judge_one(rec: dict) -> dict:
         f"[에이전트 답]\n{rec['agent_answer']}\n\nJSON:"
     )
     try:
-        raw = llm.chat([{"role": "system", "content": _JUDGE_SYS},
-                        {"role": "user", "content": user}], max_tokens=220, timeout=90)
+        raw = llm.chat(
+            [{"role": "system", "content": _JUDGE_SYS}, {"role": "user", "content": user}], max_tokens=1000, timeout=90
+        )
         obj = llm._json_span(raw, "{", "}") or {}
     except Exception as e:  # noqa: BLE001
         obj = {"score": 0.0, "verdict": "error", "reason": f"{type(e).__name__}: {e}"}
     score = obj.get("score")
     if score not in (0.0, 0.5, 1.0):
         score = 0.0
-    return {"id": rec["id"], "doc": rec["doc"], "capability": rec["capability"],
-            "visual_type": rec["visual_type"], "difficulty": rec["difficulty"],
-            "score": float(score), "verdict": obj.get("verdict", "?"),
-            "reason": obj.get("reason", "")}
+    return {
+        "id": rec["id"],
+        "doc": rec["doc"],
+        "capability": rec["capability"],
+        "visual_type": rec["visual_type"],
+        "difficulty": rec["difficulty"],
+        "score": float(score),
+        "verdict": obj.get("verdict", "?"),
+        "reason": obj.get("reason", ""),
+    }
 
 
 def _mean(xs: list[float]) -> float:
@@ -145,18 +169,23 @@ def judge() -> None:
     SCORES_JSON.write_text(json.dumps(scores, ensure_ascii=False, indent=2), encoding="utf-8")
 
     all_scores = [s["score"] for s in scores]
-    lines = [f"# v0.2 비전-QA 평가 — wiki agent (dataset={DATASET})", "",
-             f"**전체: {len(scores)}문항 · 평균 {_mean(all_scores):.2f}**", ""]
+    lines = [
+        f"# v0.2 비전-QA 평가 — wiki agent (dataset={DATASET})",
+        "",
+        f"**전체: {len(scores)}문항 · 평균 {_mean(all_scores):.2f}**",
+        "",
+    ]
     lines += _breakdown_table("프로젝트(doc)별", "doc", scores)
     lines += _breakdown_table("능력축(capability)별", "capability", scores)
     lines += _breakdown_table("시각유형(visual_type)별", "visual_type", scores)
     lines += _breakdown_table("난이도(difficulty)별", "difficulty", scores)
-    lines += ["## 문항별", "", "| ID | doc | capability | score | verdict | reason |",
-              "|---|---|---|---|---|---|"]
+    lines += ["## 문항별", "", "| ID | doc | capability | score | verdict | reason |", "|---|---|---|---|---|---|"]
     for r in recs:
         s = by_id[r["id"]]
-        lines.append(f"| {r['id']} | {r['doc']} | {r['capability']} | {s['score']:.1f} | "
-                     f"{s['verdict']} | {s['reason'].replace('|', '/')} |")
+        lines.append(
+            f"| {r['id']} | {r['doc']} | {r['capability']} | {s['score']:.1f} | "
+            f"{s['verdict']} | {s['reason'].replace('|', '/')} |"
+        )
     REPORT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines[:14]))
     print(f"\nwrote {SCORES_JSON}\nwrote {REPORT_MD}")

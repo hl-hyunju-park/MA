@@ -14,8 +14,10 @@ so swapping in a hosted API is just two env vars.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import urllib.request
+from pathlib import Path
 
 from . import config
 from .graph.metrics import METRICS, METRIC_IDS
@@ -41,6 +43,34 @@ def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 512,
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read())
     return data["choices"][0]["message"]["content"]
+
+
+def cached_chat(messages: list[dict], *, cache_dir: str, temperature: float = 0.0,
+                max_tokens: int = 512, timeout: float = 60.0) -> str:
+    """Disk-cached :func:`chat` — same return, but reproducible across reruns for the same
+    (model, messages, params). Use for **build-time** LLM calls (e.g. PDF structuring) so a
+    wiki rebuild doesn't re-roll the corpus and perturb downstream eval results. The shared
+    vLLM is non-deterministic even at temperature 0 (continuous batching), so this is what
+    makes a rebuild idempotent. Do NOT use for the agent/judge — those stay stochastic by
+    design (averaged over runs). Only successful responses are cached; a corrupt entry recomputes.
+
+    See also: ``parsers.pdf.vision.get_or_compute`` — a parallel cache for vision (multimodal)
+    calls; stores under ``"markdown"`` and takes a ``compute`` callable rather than calling
+    ``chat`` directly. Different cache dir and payload shape; kept separate intentionally.
+    """
+    key = hashlib.sha256(
+        json.dumps([MODEL, messages, temperature, max_tokens], ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:32]
+    path = Path(cache_dir) / f"{key}.json"
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))["content"]
+        except Exception:  # noqa: BLE001 — ignore a corrupt cache entry and recompute
+            pass
+    result = chat(messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"content": result}, ensure_ascii=False), encoding="utf-8")
+    return result
 
 
 def _json_span(raw: str, open_ch: str, close_ch: str):
