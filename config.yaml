@@ -49,5 +49,7 @@ agent:
 # Hand-authored, version-controlled curation (committed, unlike data/): per dataset version
 # under curation/<version>/ — decks.yaml (build-time deck descriptions) + routes.yaml (query-time
 # routing shortcuts). See src/stella_kb/config.py: curation_dir / wiki_decks_yaml / agent_routes_yaml.
+# Paths resolve per-version from the wiki/data dir; envs MNA_AGENT_ROUTES / MNA_WIKI_DECKS pin an
+# explicit file and are SINGLE-DATASET only (they override the per-version resolution for all).
 curation:
   dir: curation             # env: MNA_CURATION_DIR

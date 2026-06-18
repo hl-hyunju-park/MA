@@ -80,9 +80,13 @@ src/stella_kb/
                           #   per-deck two-layer "document" node (description + ToC); keeps no-figure pages
     lint.py               # maintenance pass (deterministic, offline): broken [[link]] / orphan alias / missing
                           #   + orphan page / stale route; --fix prunes index.json drift; --contradictions opt-in
+    qa.py                 # query-compounding: persist a grounded agent answer to <wiki>/qa/<page>.jsonl
+                          #   (source of truth) + render it into the page's "## Q&A (compounded)" section;
+                          #   compile re-renders it each rebuild so it survives. Gate: answer must cite ≥1 cell
   parsers/pdf/            # vision PDF parser (describe/vision/tables/router); emits tables + [그래프]/[다이어그램]
 apps/agent/               # query agent (separate from the build pipeline)
   core.py                 # public API: run / ask / answer(router) / stream_run  — takes a dataset `store`
+                          #   run/answer(save=True) compounds a grounded answer onto its page (io.persist_answer)
   datasets.py             # dataset (wiki VERSION) registry + cached WikiStore  (id -> wiki dir)
   io/tools.py             # deterministic wiki access (lookup/open_page/query_ledger/trace_links); per-request wiki_dir
   graph/                  # LangGraph: state/nodes/build  (wiki_dir threaded through state, not a global)

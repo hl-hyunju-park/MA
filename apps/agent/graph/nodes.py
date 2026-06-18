@@ -181,8 +181,8 @@ def _route(sub: dict, tried: list, index: dict, index_md: str,
                 picks.append(m)
         rthought = (act or {}).get("thought", "")
 
-    picks = picks[:top_k]  # deterministic cap — one round opens at most top_k pages
-    path = None
+    picks = picks[:top_k]  # cap the router's page PICKS (recall/cost knob); a trace sub-Q then
+    path = None            # appends DAG chain pages below, so trace mode can exceed top_k by design
     if sub.get("mode") == "trace" and picks:
         direction = sub.get("direction", "down")
         chain = trace_links(index, picks[0], direction=direction)

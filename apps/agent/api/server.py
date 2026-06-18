@@ -1,10 +1,11 @@
 """FastAPI server exposing the wiki query agent over HTTP.
 
-Thin wrapper around ``apps.agent.core.run`` — the wiki index is loaded once at startup
-and reused across requests; each ``/ask`` runs the LangGraph agent and returns the cited
-Korean answer plus the routing trace (which page it opened and why). Endpoints run in
-FastAPI's threadpool (the agent's LLM calls are blocking urllib), so the event loop is
-never stalled.
+Thin wrapper around ``apps.agent.core.aanswer``/``astream_run`` — the wiki index is loaded
+once at startup and reused across requests; each ``/ask`` runs the LangGraph agent and returns
+the cited Korean answer plus the routing trace (which page it opened and why). The endpoints are
+``async``: the graph is driven via ``ainvoke``/``astream`` (LangGraph runs the sync nodes in its
+executor) and the blocking vLLM health probe is offloaded with ``to_thread``, so the event loop
+is never stalled and a streaming SSE connection isn't pinned to a threadpool thread.
 
 Run (from repo root, venv active; needs data/wiki/ and the local vLLM — see llm.py):
     .venv/bin/uvicorn apps.agent.api.server:app --host 0.0.0.0 --port 8000

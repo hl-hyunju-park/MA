@@ -193,7 +193,10 @@ def test_committed_routes_targets_exist(version):
 
 
 def test_lookup_resolves_known_term(index):
-    out = lookup(index, "관리보수")
+    # assert on an EXACT-match alias (관리보수율) of the page, not a substring term against the
+    # whole corpus — the bare "관리보수" ranks 제2호_관리보수 past the 12-row window once FDD pages
+    # join the alias index, which tests display truncation, not resolution.
+    out = lookup(index, "관리보수율")
     assert "제2호_관리보수" in out and "hit" in out
 
 

@@ -91,6 +91,53 @@ def test_compiled_app_supports_async_drive(index):
     assert hasattr(app, "ainvoke") and hasattr(app, "astream")
 
 
+def _stub_ask(system, user, max_tokens):
+    """Deterministic LLM stub so the async vs sync drive can be compared without the vLLM.
+    Branches on which prompt is passed (planner/router/verifier/synthesizer)."""
+    from apps.agent.graph import nodes
+
+    if system == nodes.PLANNER:
+        return {"plan": [{"ask": "Q", "hint_terms": []}], "thought": "t"}, "raw"
+    if system == nodes.ROUTER:
+        return {"pages": [], "thought": "t"}, "raw"          # no pages → no retriever LLM call
+    if system == nodes.VERIFIER:
+        return {"verdict": "ok", "reason": "r"}, "raw"        # no retry
+    if system == nodes.SYNTHESIZER:
+        return {"text": "FIXED-ANSWER", "thought": "t"}, "raw"
+    return {}, "raw"
+
+
+def test_async_run_matches_sync_run(index, monkeypatch):
+    import asyncio
+
+    from apps.agent import core
+    from apps.agent.graph import nodes
+
+    monkeypatch.setattr(nodes, "_ask", _stub_ask)
+    sync = core.run("Q", index=index)
+    asy = asyncio.run(core.arun("Q", index=index))
+    assert sync["answer"] == asy["answer"] == "FIXED-ANSWER"
+    assert [e["agent"] for e in sync["trace"]] == [e["agent"] for e in asy["trace"]]
+    assert sync["steps"] == asy["steps"]
+
+
+def test_async_stream_matches_sync_stream(index, monkeypatch):
+    import asyncio
+
+    from apps.agent import core
+    from apps.agent.graph import nodes
+
+    monkeypatch.setattr(nodes, "_ask", _stub_ask)
+    sync_ev = list(core.stream_run("Q", index=index))
+
+    async def collect():
+        return [ev async for ev in core.astream_run("Q", index=index)]
+
+    asy_ev = asyncio.run(collect())
+    assert [e["type"] for e in sync_ev] == [e["type"] for e in asy_ev]
+    assert sync_ev[-1]["type"] == "answer" and sync_ev[-1]["answer"] == asy_ev[-1]["answer"]
+
+
 # --- curated first-layer deck override (decks.yaml) -----------------------------------
 # build_document's upper layer is curated > LLM > default. When BOTH title and description
 # are pinned, the LLM call is skipped — so these run offline/deterministically.
