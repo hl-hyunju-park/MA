@@ -246,7 +246,11 @@ def build_index() -> dict:
         tree.setdefault(cls["section"], {}).setdefault(cls["group"], []).append(sheet)
 
     sheet_dag = build_sheet_dag(WORKBOOK)
-    return {"tree": tree, "pages": pages, "alias_index": aliases, "sheet_dag": sheet_dag}
+    result = {"tree": tree, "pages": pages, "alias_index": aliases, "sheet_dag": sheet_dag}
+    from ..config import alias_stopwords
+    from .dedup import dedup_alias_index
+    dedup_alias_index(result, tuple(alias_stopwords()))  # drop structural + reorder-dup aliases
+    return result
 
 
 def render_md(index: dict) -> str:

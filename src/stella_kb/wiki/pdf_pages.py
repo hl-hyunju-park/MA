@@ -468,6 +468,12 @@ if __name__ == "__main__":
         print(f"   built {len(entries)} PDF page(s) + document node '{documents[doc]['title']}'")
     index["documents"] = documents
 
+    # re-dedup: the FDD merge above adds page aliases (incl. scaffolding like Key Issue/Category)
+    # AFTER build_index's dedup, so clean the merged result again before persisting.
+    from ..config import alias_stopwords
+    from .dedup import dedup_alias_index
+    dedup_alias_index(index, tuple(alias_stopwords()))
+
     OUT_JSON.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     OUT_MD.write_text(render_md(index), encoding="utf-8")
     print(f"pdf_pages: merged -> {OUT_JSON}  (pages={len(index['pages'])}, " f"aliases={len(index['alias_index'])})")

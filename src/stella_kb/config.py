@@ -165,6 +165,13 @@ def wiki_workbook() -> str:
     return get("wiki", "workbook", env="MNA_WIKI_WORKBOOK", default=WORKBOOK)
 
 
+def alias_stopwords() -> list:
+    """Extra structural alias terms to drop in the dedup pass, beyond the curated
+    ``wiki.dedup.STRUCTURAL_STOPWORDS``. yaml: ``wiki.alias_stopwords`` (a list of terms)."""
+    v = get("wiki", "alias_stopwords", default=[])
+    return list(v) if isinstance(v, (list, tuple)) else []
+
+
 def wiki_data_dir() -> Path:
     """Base dir holding the wiki build artifacts (``md/`` ``parsed/`` ``wiki/``). Default is the
     canonical build under ``data/v0.1`` (each corpus version lives in its own ``data/<v>``)."""
