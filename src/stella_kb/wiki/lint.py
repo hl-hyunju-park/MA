@@ -218,6 +218,37 @@ def _check_routes(wiki_dir: Path, valid_pages: set[str]) -> list[dict]:
     return findings
 
 
+def _check_cross_refs(index: dict, valid_pages: set[str]) -> list[dict]:
+    """PDF→Excel cross-refs must stay bipartite + directed + inverse-consistent:
+    ``derives_from`` only on PDF pages pointing at real Excel pages; ``cited_by`` only on Excel
+    pages; and every ``F derives_from E`` mirrored in ``E.cited_by`` (no PDF↔PDF, no drift)."""
+    pages = index.get("pages", {})
+
+    def is_pdf(n: str) -> bool:
+        return pages.get(n, {}).get("source") == "PDF"
+
+    findings: list[dict] = []
+    for name, e in pages.items():
+        if e.get("derives_from") and not is_pdf(name):
+            findings.append(_finding("cross_ref", "error", name,
+                                     "derives_from on a non-PDF page (edge must be PDF→Excel)"))
+        if e.get("cited_by") and is_pdf(name):
+            findings.append(_finding("cross_ref", "error", name,
+                                     "cited_by on a PDF page (edge must be Excel→PDF)"))
+        for d in e.get("derives_from") or []:
+            tgt = d.get("page") if isinstance(d, dict) else d
+            if tgt not in valid_pages:
+                findings.append(_finding("cross_ref", "error", str(tgt),
+                                         f"derives_from {name!r} → {tgt!r} which is not a real page"))
+            elif is_pdf(tgt):
+                findings.append(_finding("cross_ref", "error", str(tgt),
+                                         f"derives_from {name!r} → a PDF page (PDF↔PDF forbidden)"))
+            elif name not in (pages.get(tgt, {}).get("cited_by") or []):
+                findings.append(_finding("cross_ref", "warn", str(tgt),
+                                         f"derives_from {name!r} → {tgt!r} not mirrored in its cited_by"))
+    return findings
+
+
 def _norm_value(v: str) -> str:
     """Comparable form of a rendered value: drop thousands separators and surrounding space."""
     return v.replace(",", "").strip()
@@ -286,6 +317,7 @@ def lint(wiki_dir: str | Path | None = None, contradictions: bool = False) -> di
     findings += _check_pages(index, valid_pages)
     findings += _check_aliases(index, valid_pages)
     findings += _check_routes(base, valid_pages)
+    findings += _check_cross_refs(index, valid_pages)
     if contradictions:
         findings += _check_contradictions(pages_dir, index)
 

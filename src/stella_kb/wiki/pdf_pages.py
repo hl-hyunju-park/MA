@@ -473,6 +473,17 @@ if __name__ == "__main__":
     from .dedup import dedup_alias_index
     dedup_alias_index(index, tuple(alias_stopwords()))
 
+    # directed PDF→Excel cross-refs (derives_from / cited_by) — both page sets now coexist
+    from ..config import cross_ref_llm_judge
+    from .cross_refs import build_cross_refs
+    judge = None
+    if cross_ref_llm_judge():
+        from .cross_refs import make_llm_judge
+        judge = make_llm_judge()
+    cx = build_cross_refs(index, judge=judge)
+    print(f"pdf_pages: cross_refs PDF→Excel — {cx['edges']} edge(s), "
+          f"{cx['pdf_with_links']} FDD page(s) linked, {cx['excel_cited']} Excel page(s) cited")
+
     OUT_JSON.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     OUT_MD.write_text(render_md(index), encoding="utf-8")
     print(f"pdf_pages: merged -> {OUT_JSON}  (pages={len(index['pages'])}, " f"aliases={len(index['alias_index'])})")

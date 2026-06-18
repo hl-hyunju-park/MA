@@ -172,6 +172,14 @@ def alias_stopwords() -> list:
     return list(v) if isinstance(v, (list, tuple)) else []
 
 
+def cross_ref_llm_judge() -> bool:
+    """When true, the PDF→Excel cross-ref build (``wiki.cross_refs``) uses the cached, whitelist-
+    guarded LLM judge to confirm ambiguous Tier-B candidates. Default **off** — deterministic
+    fund-identity + specific-metric links only, pending a quality check on the judged edges."""
+    return get("wiki", "cross_ref_llm_judge", env="MNA_CROSSREF_JUDGE",
+               default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
+
+
 def wiki_data_dir() -> Path:
     """Base dir holding the wiki build artifacts (``md/`` ``parsed/`` ``wiki/``). Default is the
     canonical build under ``data/v0.1`` (each corpus version lives in its own ``data/<v>``)."""
