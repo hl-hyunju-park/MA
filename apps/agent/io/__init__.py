@@ -6,6 +6,7 @@ from .tools import (
     LEDGERS_DIR,
     PAGES_DIR,
     WIKI_DIR,
+    cross_ref_partners,
     extract_page_items,
     load_index,
     load_routes,
@@ -21,4 +22,5 @@ __all__ = [
     "WIKI_DIR", "INDEX_MD", "INDEX_JSON", "PAGES_DIR", "LEDGERS_DIR",
     "load_index", "lookup", "open_page", "trace_links", "query_ledger",
     "load_routes", "route_lookup", "extract_page_items", "persist_answer",
+    "cross_ref_partners",
 ]

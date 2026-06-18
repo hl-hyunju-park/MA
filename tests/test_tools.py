@@ -5,7 +5,25 @@ from __future__ import annotations
 import pytest
 
 from apps.agent.graph.nodes import parse_action
-from apps.agent.io import extract_page_items, lookup, open_page, route_lookup, trace_links
+from apps.agent.io import (
+    cross_ref_partners,
+    extract_page_items,
+    lookup,
+    open_page,
+    route_lookup,
+    trace_links,
+)
+
+
+def test_cross_ref_partners_directional():
+    idx = {"pages": {
+        "FDD1": {"source": "PDF", "derives_from": [
+            {"page": "E1", "via": "x"}, {"page": "E2", "via": "y"}, {"page": "E3", "via": "z"}]},
+        "E1": {"cited_by": ["FDD1", "FDD9"]},
+    }}
+    assert cross_ref_partners(idx, "FDD1", cap=2) == ["E1", "E2"]   # PDF → derives_from (capped)
+    assert cross_ref_partners(idx, "E1") == ["FDD1", "FDD9"]        # Excel → cited_by
+    assert cross_ref_partners(idx, "missing") == []
 
 # --- parse_action: salvage one JSON object from messy model output ---------------------
 

@@ -231,6 +231,37 @@ def test_route_retry_bypasses_shortcut_and_calls_llm(monkeypatch):
     assert picks == ["WACC 페이지"]  # came from the LLM path, not the shortcut
 
 
+_CX_IDX = {"pages": {"FDD1": {"source": "PDF", "derives_from": [{"page": "E1", "via": "x"}]},
+                     "E1": {}}, "alias_index": {}}
+
+
+def test_route_cross_ref_pairing_on(monkeypatch):
+    from apps.agent.graph import nodes
+    from src.stella_kb import config
+
+    monkeypatch.setattr(config, "agent_cross_ref_pairing", lambda: True)
+    monkeypatch.setattr(nodes, "route_lookup", lambda *a, **k: ["FDD1"])
+    monkeypatch.setattr(nodes, "_ask",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM called")))
+    sub = {"ask": "reconcile", "hint_terms": ["x"], "mode": "lookup"}
+    picks, _, thought = nodes._route(sub, [], _CX_IDX, "INDEX", wiki_dir=None)
+    assert "FDD1" in picks and "E1" in picks       # both the FDD page and its Excel source opened
+    assert "cross-ref" in thought
+
+
+def test_route_no_cross_ref_pairing_when_off(monkeypatch):
+    from apps.agent.graph import nodes
+    from src.stella_kb import config
+
+    monkeypatch.setattr(config, "agent_cross_ref_pairing", lambda: False)
+    monkeypatch.setattr(nodes, "route_lookup", lambda *a, **k: ["FDD1"])
+    monkeypatch.setattr(nodes, "_ask",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM called")))
+    sub = {"ask": "x", "hint_terms": ["x"], "mode": "lookup"}
+    picks, _, _ = nodes._route(sub, [], _CX_IDX, "INDEX", wiki_dir=None)
+    assert picks == ["FDD1"]                        # partner NOT attached when flag off
+
+
 def test_route_miss_falls_back_to_llm(monkeypatch):
     from apps.agent.graph import nodes
 

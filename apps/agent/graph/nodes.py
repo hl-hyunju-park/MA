@@ -22,7 +22,15 @@ from concurrent.futures import ThreadPoolExecutor
 from src.stella_kb import config
 from src.stella_kb.llm import chat
 
-from ..io import extract_page_items, lookup, open_page, query_ledger, route_lookup, trace_links
+from ..io import (
+    cross_ref_partners,
+    extract_page_items,
+    lookup,
+    open_page,
+    query_ledger,
+    route_lookup,
+    trace_links,
+)
 from ..prompts import load as load_prompt
 from .state import AgentState
 
@@ -35,6 +43,7 @@ SYNTHESIZER = load_prompt("synthesizer")
 _FANOUT = max(1, config.agent_fanout())  # concurrent LLM requests cap
 _LLM_SEM = threading.Semaphore(_FANOUT)  # guards the shared guest vLLM from overload
 _SYNTH_ORDER = 10**9  # sorts the synthesizer's trace entry last, after every branch
+_CROSS_PAIR_CAP = 3   # max PDF↔Excel cross-ref partner pages added per sub-question (over-retrieval guard)
 
 
 def set_fanout(n: int) -> None:
@@ -189,6 +198,17 @@ def _route(sub: dict, tried: list, index: dict, index_md: str,
         chain_pages = [c["sheet"] for c in chain if c["has_page"] and c["sheet"] not in picks][:5]
         path = {"ask": sub["ask"], "direction": direction, "start": picks[0], "chain": chain}
         picks = picks + chain_pages
+
+    # cross-check pairing: attach each picked page's PDF↔Excel partner so a reconcile question
+    # opens both the FDD report page and its Excel source. Capped, deduped — off by default.
+    if config.agent_cross_ref_pairing() and picks:
+        extra: list = []
+        for p in picks:
+            extra += cross_ref_partners(index, p, cap=2)
+        extra = [p for p in dict.fromkeys(extra) if p not in picks][:_CROSS_PAIR_CAP]
+        if extra:
+            picks = picks + extra
+            rthought = (rthought + " +cross-ref").strip()
     return picks, path, rthought
 
 

@@ -63,6 +63,16 @@ def load_routes(wiki_dir: str | Path | None = None) -> dict:
     return _load_routes_cached(str(path), path.stat().st_mtime)
 
 
+def cross_ref_partners(index: dict, page: str, cap: int = 2) -> list[str]:
+    """Directed PDF↔Excel cross-ref partners of ``page`` — an FDD page's Excel sources
+    (``derives_from``), or an Excel page's citing FDD pages (``cited_by``). Deterministic; empty
+    if none. Lets the router auto-pair both sides of a PDF×Excel cross-check question."""
+    e = index.get("pages", {}).get(page, {})
+    if e.get("source") == "PDF":
+        return [d["page"] if isinstance(d, dict) else d for d in (e.get("derives_from") or [])][:cap]
+    return list(e.get("cited_by") or [])[:cap]
+
+
 def route_lookup(hint_terms: list[str], index: dict,
                  wiki_dir: str | Path | None = None) -> list[str]:
     """Deterministic curated routing: a sub-question's hint terms → pages, via ``routes.yaml``.

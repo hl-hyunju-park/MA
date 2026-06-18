@@ -89,6 +89,15 @@ def agent_router_top_k() -> int:
     return get("agent", "router_top_k", env="MNA_ROUTER_TOPK", default=3, cast=int)
 
 
+def agent_cross_ref_pairing() -> bool:
+    """When true, the router auto-attaches a routed page's PDF↔Excel cross-ref partner(s)
+    (``derives_from``/``cited_by``) so a cross-check/reconcile question opens both the FDD report
+    page and its Excel source. Capped to avoid over-retrieval. Default **off** — query-affecting,
+    so enable for the A/B (env ``MNA_CROSSREF_PAIR``) before turning it on by default."""
+    return get("agent", "cross_ref_pairing", env="MNA_CROSSREF_PAIR",
+               default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
+
+
 def agent_deterministic_retrieve() -> bool:
     """When true, the retriever first tries a **deterministic** parse of a page's ``value [cell]``
     table (``io.tools.extract_page_items``) and, on a hit, skips that page's LLM extraction — a
