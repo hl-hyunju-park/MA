@@ -206,10 +206,9 @@ def _table_terms(tables: list[str], cap: int = 24) -> list[str]:
 def _page_md(name: str, tag: str, label: str, s: dict, xref: list[str] | None = None,
              body: str | None = None) -> str:
     title = s.get("title") or label
-    aliases = [a for a in (s.get("aliases") or []) if a]
+    # aliases are NOT written to page frontmatter — the alias_index (index.json) is the resolver,
+    # built from the parsed items; the page md would only be dead weight (open_page strips it).
     out = ["---", "source: PDF", f"page: {name}", f"tag: {tag}", f"section: {label}"]
-    if aliases:
-        out.append("aliases: [" + ", ".join(aliases) + "]")
     out += [
         "---",
         "",

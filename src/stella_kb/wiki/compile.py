@@ -353,13 +353,6 @@ def compile_page(sheet: str, parsed: dict, vals: dict,
     tables = usable_tables(parsed, vals)
     items = all_items(parsed, vals)
 
-    # gather aliases for the header (the words->node resolver)
-    aliases = []
-    for it in items:
-        for a in [it.get("label_ko"), it.get("label_en"), *(it.get("aliases") or [])]:
-            if a and a not in aliases:
-                aliases.append(a)
-
     # currency/unit: a precise token + callout, and per-row units when the sheet mixes them
     ccy_token, ccy_callout, per_row = page_currency(meta, items, sheet)
 
@@ -379,8 +372,7 @@ def compile_page(sheet: str, parsed: dict, vals: dict,
     if meta.get("case"):
         out.append(f"case: {meta['case']}")
     out.append(f"unit: {ccy_token}")
-    if aliases:
-        out.append("aliases: [" + ", ".join(aliases) + "]")
+    # aliases intentionally NOT in page frontmatter — alias_index (index.json) is the resolver.
     out += ["---", "", f"# {meta.get('title') or sheet}", "",
             f"> **통화·단위 (Currency / Unit): {ccy_callout}**"
             + ("" if per_row else " — 이 페이지의 모든 금액 수치에 적용됩니다."), ""]
