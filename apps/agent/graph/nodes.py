@@ -86,6 +86,31 @@ def parse_action(raw: str) -> dict | None:
         return None
 
 
+def _salvage_text(raw: str) -> str | None:
+    """Recover the ``text`` field from a malformed/truncated synthesizer JSON.
+
+    When ``parse_action`` fails (e.g. a long ``thought`` ran past ``max_tokens`` before the
+    JSON closed), this walks the ``"text": "..."`` value honoring backslash escapes so a
+    truncated trailing field doesn't matter. Returns None if no recoverable text field is
+    present — the caller then emits a clean message instead of leaking the raw ``{"thought":…}``
+    skeleton to the user (the CE-01 failure)."""
+    m = re.search(r'"text"\s*:\s*"', raw)
+    if not m:
+        return None
+    out, i = [], m.end()
+    while i < len(raw):
+        ch = raw[i]
+        if ch == "\\" and i + 1 < len(raw):
+            out.append({"n": "\n", "t": "\t", "r": "\r"}.get(raw[i + 1], raw[i + 1]))
+            i += 2
+            continue
+        if ch == '"':
+            break
+        out.append(ch)
+        i += 1
+    return "".join(out).strip() or None
+
+
 def _ask(system: str, user: str, max_tokens: int) -> tuple[dict | None, str]:
     """One-shot LLM call: system + user → (parsed JSON action, raw text).
 
@@ -455,8 +480,11 @@ def synthesizer_node(state: AgentState) -> AgentState:
         f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}"
         f"{path_block}{caveat_block}\n\nWrite the final answer JSON."
     )
-    act, raw = _ask(SYNTHESIZER, user, 700)
-    text = ((act or {}).get("text") or raw or "").strip() or "(빈 답변)"
+    act, raw = _ask(SYNTHESIZER, user, 900)
+    # never fall back to `raw` — a parse miss must not leak the {"thought":…} JSON skeleton
+    # to the user; salvage the text field, else emit a clean message.
+    text = (act or {}).get("text") or _salvage_text(raw) or ""
+    text = text.strip() or "evidence는 수집되었으나 최종 답변 정리에 실패했습니다."
     return {
         "answer": text,
         "trace": [_rec(_SYNTH_ORDER, 0, "synthesizer", "answer", "", (act or {}).get("thought", ""))],
