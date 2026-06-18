@@ -34,6 +34,10 @@ Transaction Multiple: FDD19 — [STELLA] Valuation Summary | GTC(Transaction Mul
 Exit Value: FDD10 — [STELLA] Valuation Summary [Exit Value 가정 비교]
 출자자: FDD11 — [STELLA] 출자자별 출자금액 현황
 출자금액: FDD11 — [STELLA] 출자자별 출자금액 현황
+# Fund-tenure heatmap: 설정일/존속기간 columns live ONLY on this page. (만기일 deliberately
+# omitted — it also appears on FDD5 — [LIFE] 사업영역 현황, so it would collide cross-deck.)
+설정일: FDD16 — [STELLA] Valuation Summary | Fund Projection by case
+존속기간: FDD16 — [STELLA] Valuation Summary | Fund Projection by case
 # Removed "Company Snapshot" → STELLA: a generic deck-overview concept (CAESAR has
 # "Target Overview | Overview", LIFE has "KDB생명보험 개요"), so it mis-routes a CAESAR/LIFE
 # overview question to STELLA — same class as Operating Revenue. Let the LLM router pick by deck.
