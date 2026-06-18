@@ -29,8 +29,10 @@ frontend/dist/
 # Secrets: never commit .env (DART_MCP_TOKEN, DART_API_KEY). Use .env.example as template.
 .env
 
-# Local agent/session state
-.claude/
+# Local agent/session state — ignore contents but DO track shared skills (committed workflows).
+# Must ignore .claude/* (entries), not .claude/ (the dir), so git can descend to re-include skills.
+.claude/*
+!.claude/skills
 docs/agent_graph.png
 
 # detached server logs (run_server.sh / vite)
