@@ -12,6 +12,7 @@ the right page on its own, using only the deterministic ``apps.agent.io`` reads.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from .graph import AgentState, build_app
@@ -40,18 +41,21 @@ def route(question: str) -> str:
 
 
 def answer(question: str, source: str = "auto", max_steps: int = 3,
-           verbose: bool = False, index: dict | None = None, store: Any = None) -> dict[str, Any]:
+           verbose: bool = False, index: dict | None = None, store: Any = None,
+           save: bool = False) -> dict[str, Any]:
     """Unified entry point: route (or honor an explicit ``source``) and dispatch.
 
     ``source`` is ``"auto"`` (route), ``"wiki"`` (Centroid KB), or ``"dart"`` (public co.).
     ``store`` selects the wiki dataset (ignored by the DART backend, which has no wiki).
+    ``save=True`` compounds a grounded wiki answer back onto its page (no-op for DART).
     Returns ``{source, answer, trace, steps}`` — same shape for both backends."""
     src = route(question) if source == "auto" else source
     if src == "dart":
         from .dart_agent import run_dart
         return {"source": "dart", **run_dart(question)}
     return {"source": "wiki",
-            **run(question, max_steps=max_steps, verbose=verbose, index=index, store=store)}
+            **run(question, max_steps=max_steps, verbose=verbose, index=index, store=store,
+                  save=save)}
 
 
 def _seed(question: str, max_steps: int, verbose: bool = False, store: Any = None) -> AgentState:
@@ -85,7 +89,8 @@ def _limit() -> dict:
 
 
 def run(question: str, max_steps: int = 3, verbose: bool = False,
-        index: dict | None = None, app: Any = None, store: Any = None) -> dict[str, Any]:
+        index: dict | None = None, app: Any = None, store: Any = None,
+        save: bool = False) -> dict[str, Any]:
     """Navigate the wiki to answer ``question``; return ``{answer, trace, steps, evidence}``.
 
     ``trace`` is the per-turn routing record (which page it opened, why) — the whole point
@@ -98,21 +103,59 @@ def run(question: str, max_steps: int = 3, verbose: bool = False,
     it takes precedence over ``index``. ``app`` lets a caller pass a graph compiled once and
     reused across many questions (the eval builds it per-question otherwise); when given,
     ``index`` is ignored — but pass a matching ``store`` so the seeded dir lines up with it.
+
+    ``save=True`` *compounds* the answer back onto its most-cited wiki page (the query→page
+    step) when it's grounded — adds a ``saved`` key with the persist result. Off by default:
+    only a deliberately-saved query becomes permanent.
     """
     if app is None:
         idx = store.index if store is not None else (index if index is not None else load_index())
         app = build_app(idx)
     final: dict[str, Any] = app.invoke(_seed(question, max_steps, verbose, store), config=_limit())
-    return {"answer": (final.get("answer") or "(no answer)").strip(),
-            "trace": _renumber(final.get("trace", [])),
-            "steps": final.get("steps", 0),
-            "evidence": final.get("evidence", [])}
+    result = {"answer": (final.get("answer") or "(no answer)").strip(),
+              "trace": _renumber(final.get("trace", [])),
+              "steps": final.get("steps", 0),
+              "evidence": final.get("evidence", [])}
+    if save:
+        from .io import persist_answer
+        result["saved"] = persist_answer(
+            question, result["answer"], result["evidence"],
+            wiki_dir=(str(store.wiki_dir) if store is not None else None))
+    return result
 
 
 def ask(question: str, max_steps: int = 3, verbose: bool = False,
         index: dict | None = None) -> str:
     """Convenience wrapper around :func:`run` that returns just the answer string."""
     return run(question, max_steps=max_steps, verbose=verbose, index=index)["answer"]
+
+
+async def arun(question: str, max_steps: int = 3, verbose: bool = False,
+               index: dict | None = None, app: Any = None, store: Any = None) -> dict[str, Any]:
+    """Async twin of :func:`run` — drives the graph with ``ainvoke`` so the event loop is never
+    blocked (the sync node functions run in LangGraph's executor). Same return shape as ``run``.
+    Used by the async API; the sync ``run`` stays for the eval/CLI callers."""
+    if app is None:
+        idx = store.index if store is not None else (index if index is not None else load_index())
+        app = build_app(idx)
+    final: dict[str, Any] = await app.ainvoke(_seed(question, max_steps, verbose, store), config=_limit())
+    return {"answer": (final.get("answer") or "(no answer)").strip(),
+            "trace": _renumber(final.get("trace", [])),
+            "steps": final.get("steps", 0),
+            "evidence": final.get("evidence", [])}
+
+
+async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
+                  verbose: bool = False, index: dict | None = None,
+                  store: Any = None) -> dict[str, Any]:
+    """Async twin of :func:`answer`: route (or honor ``source``) and dispatch. The sync backends
+    (``route`` classifier, DART tool agent) run via ``to_thread`` so they don't block the loop."""
+    src = (await asyncio.to_thread(route, question)) if source == "auto" else source
+    if src == "dart":
+        from .dart_agent import run_dart
+        return {"source": "dart", **(await asyncio.to_thread(run_dart, question))}
+    return {"source": "wiki",
+            **(await arun(question, max_steps=max_steps, verbose=verbose, index=index, store=store))}
 
 
 def stream_run(question: str, max_steps: int = 3, index: dict | None = None, store: Any = None):
@@ -136,6 +179,28 @@ def stream_run(question: str, max_steps: int = 3, index: dict | None = None, sto
         while emitted < len(trace):                       # surface each new decision
             e = dict(trace[emitted])
             e["step"] = emitted                           # running global step (branches merge)
+            yield {"type": "step", **e}
+            emitted += 1
+    if final.get("answer"):
+        yield {"type": "answer", "answer": final["answer"], "steps": final.get("steps", 0)}
+
+
+async def astream_run(question: str, max_steps: int = 3, index: dict | None = None,
+                      store: Any = None):
+    """Async twin of :func:`stream_run` — an async generator over ``app.astream`` so the SSE
+    endpoint can stream without pinning a threadpool thread for the connection's lifetime. Emits
+    the same ``step``/``answer`` event dicts; LangGraph runs the sync nodes in its executor."""
+    idx = store.index if store is not None else (index if index is not None else load_index())
+    app = build_app(idx)
+    emitted = 0
+    final: dict[str, Any] = {}
+    async for state in app.astream(_seed(question, max_steps, False, store), config=_limit(),
+                                   stream_mode="values"):
+        final = state
+        trace = state.get("trace", [])
+        while emitted < len(trace):
+            e = dict(trace[emitted])
+            e["step"] = emitted
             yield {"type": "step", **e}
             emitted += 1
     if final.get("answer"):

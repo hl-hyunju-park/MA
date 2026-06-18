@@ -431,6 +431,10 @@ if __name__ == "__main__":
         if sheet not in whitelist:  # _raw-only: skip any full-workbook-only sheet (e.g. carry)
             return f"-- skipping {name!r} — sheet {sheet!r} not in _raw (out of wiki scope)"
         md = compile_page(sheet, parsed, load_values(sheet), links, whitelist, use_llm)
+        # Re-render any compounded Q&A (sidecar = source of truth) so it survives the rebuild.
+        from . import qa
+        wiki_dir = OUT_DIR.parent
+        md = qa.upsert_qa_section(md, qa.load_qa(wiki_dir, name), target_page=sheet)
         (OUT_DIR / f"{name}.md").write_text(md, encoding="utf-8")
         return (f"wrote {name}.md  ({len(parsed.get('line_items', []))} items, "
                 f"{'prose' if use_llm else 'scaffold'})")

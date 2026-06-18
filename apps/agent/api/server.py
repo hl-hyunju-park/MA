@@ -17,6 +17,7 @@ Run (from repo root, venv active; needs data/wiki/ and the local vLLM — see ll
 
 from __future__ import annotations
 
+import asyncio
 import json
 import urllib.request
 from contextlib import asynccontextmanager
@@ -30,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from src.stella_kb.llm import BASE_URL, MODEL
 
 from .. import datasets
-from ..core import answer, stream_run
+from ..core import aanswer, astream_run
 from .schema import AskResponse
 
 # the static chat frontend (single-file HTML fallback; React app lives in frontend/)
@@ -113,7 +114,7 @@ def list_datasets() -> dict:
 
 
 @app.get("/ask", response_model=AskResponse)
-def ask_endpoint(
+async def ask_endpoint(
     question: str = Query(..., description="KO/EN question about the Centroid valuation or a public company."),
     max_steps: int = Query(3, ge=1, le=20, description="Per-branch read budget (initial read + retries)."),
     source: Literal["auto", "wiki", "dart"] = Query(
@@ -131,11 +132,11 @@ def ask_endpoint(
         raise HTTPException(status_code=422, detail="question must not be empty")
     # auto/wiki need the guest vLLM (routing + wiki retrieval run on it); dart uses its own
     # endpoints (the tool LLM on :8001 + the DART MCP server) and degrades to an error answer.
-    if source != "dart" and not _vllm_up():
+    if source != "dart" and not await asyncio.to_thread(_vllm_up):
         raise HTTPException(status_code=503, detail=f"LLM endpoint {BASE_URL} unreachable")
     # The dart backend has no wiki, so only resolve a dataset for wiki/auto requests.
     store = None if source == "dart" else _resolve_store(dataset)
-    result = answer(question, source=source, max_steps=max_steps, store=store)
+    result = await aanswer(question, source=source, max_steps=max_steps, store=store)
     return AskResponse(
         question=question,
         answer=result["answer"],
@@ -147,7 +148,7 @@ def ask_endpoint(
 
 
 @app.get("/ask/stream")
-def ask_stream(
+async def ask_stream(
     question: str = Query(..., description="KO/EN question about the valuation."),
     max_steps: int = Query(3, ge=1, le=20, description="Per-branch read budget (initial read + retries)."),
     dataset: str | None = Query(None, description="Wiki dataset/version id (e.g. 'v0.2'); "
@@ -162,20 +163,21 @@ def ask_stream(
     """
     if not question.strip():
         raise HTTPException(status_code=422, detail="question must not be empty")
-    if not _vllm_up():
+    if not await asyncio.to_thread(_vllm_up):
         raise HTTPException(status_code=503, detail=f"LLM endpoint {BASE_URL} unreachable")
     store = _resolve_store(dataset)
 
-    def gen():
+    async def gen():
         try:
-            for ev in stream_run(question, max_steps=max_steps, store=store):
+            async for ev in astream_run(question, max_steps=max_steps, store=store):
                 etype = ev.pop("type")
                 yield f"event: {etype}\ndata: {json.dumps(ev, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
         except Exception as e:  # noqa: BLE001 — surface failures to the SSE client
             yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
 
-    # sync generator → Starlette iterates it in a threadpool (the agent's calls are blocking)
+    # async generator → the SSE connection is driven on the event loop, not a pinned thread;
+    # the sync agent nodes run in LangGraph's executor under astream (loop stays free).
     return StreamingResponse(
         gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )

@@ -233,6 +233,39 @@ def extract_page_items(page_md: str, hint_terms: list[str] | None = None,
     return out
 
 
+def persist_answer(question: str, answer: str, evidence: list[dict],
+                   wiki_dir: str | Path | None = None, page: str | None = None) -> dict:
+    """Compound a valuable answer onto its wiki page (the query→permanent-page step).
+
+    Writes the answer to the page's append-only sidecar (``<wiki>/qa/<page>.jsonl``, the source
+    of truth) and re-renders the page's ``## Q&A (compounded)`` section from it so it shows
+    immediately *and* survives the next ``compile`` rebuild. The target page defaults to the one
+    the evidence most cites. Persisted **only if grounded** (real answer + ≥1 cell of evidence)
+    and the target page exists — so an ungrounded/uncited answer is refused, never laundered
+    onto a page. ``wiki_dir`` is per-request (concurrency-safe), default the process wiki.
+
+    Returns ``{ok, page, reason?, n_qa?}``."""
+    from src.stella_kb.wiki import qa
+
+    base = Path(wiki_dir) if wiki_dir else WIKI_DIR
+    entry = qa.new_entry(question, answer, evidence)
+    if not qa.is_grounded(entry):
+        return {"ok": False, "page": page, "reason": "ungrounded (no cell evidence)"}
+    page = page or qa.target_page(evidence)
+    if not page:
+        return {"ok": False, "page": None, "reason": "no target page in evidence"}
+    page_path = (Path(wiki_dir) / "pages" if wiki_dir else PAGES_DIR) / f"{page}.md"
+    if not page_path.exists():
+        return {"ok": False, "page": page, "reason": f"target page {page!r} not found"}
+
+    qa.append_qa(base, page, entry)
+    entries = qa.load_qa(base, page)
+    page_path.write_text(
+        qa.upsert_qa_section(page_path.read_text(encoding="utf-8"), entries, target_page=page),
+        encoding="utf-8")
+    return {"ok": True, "page": page, "n_qa": len(entries)}
+
+
 def query_ledger(page: str, keywords: list[str], ask: str = "", cap: int = 10,
                  wiki_dir: str | Path | None = None) -> list[dict]:
     """Deterministic filter+sum over a ``*_거래내역`` ledger sidecar → evidence items.

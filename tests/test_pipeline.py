@@ -60,6 +60,37 @@ def test_build_app_compiles(index):
     assert "solve" in app.get_graph().nodes  # fan-out node is wired in
 
 
+# --- async surfaces: the API drives the graph via ainvoke/astream (event loop not blocked) ---
+
+
+def test_core_exposes_async_twins_and_keeps_sync():
+    import inspect
+
+    from apps.agent import core
+
+    assert inspect.iscoroutinefunction(core.arun)
+    assert inspect.iscoroutinefunction(core.aanswer)
+    assert inspect.isasyncgenfunction(core.astream_run)
+    # sync entry points stay for the eval/CLI callers
+    assert not inspect.iscoroutinefunction(core.run)
+    assert inspect.isgeneratorfunction(core.stream_run)
+
+
+def test_api_endpoints_are_async():
+    import inspect
+
+    from apps.agent.api import server
+
+    routes = {r.path: r for r in server.app.routes if hasattr(r, "endpoint")}
+    assert inspect.iscoroutinefunction(routes["/ask"].endpoint)
+    assert inspect.iscoroutinefunction(routes["/ask/stream"].endpoint)
+
+
+def test_compiled_app_supports_async_drive(index):
+    app = build_app(index)
+    assert hasattr(app, "ainvoke") and hasattr(app, "astream")
+
+
 # --- curated first-layer deck override (decks.yaml) -----------------------------------
 # build_document's upper layer is curated > LLM > default. When BOTH title and description
 # are pinned, the LLM call is skipped — so these run offline/deterministically.
