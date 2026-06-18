@@ -18,6 +18,8 @@ export EVAL_DATASET="${EVAL_DATASET:-v0.2}"
 echo "==> checking vLLM endpoint (123.37.5.219:8001) ..."
 curl -sf --max-time 8 123.37.5.219:8001/v1/models >/dev/null || { echo "    !! vLLM down"; exit 1; }
 
+mkdir -p "$AB_DIR"   # the per-run dirs are made by qa_eval, but the "$dir.log" redirect needs AB_DIR first
+
 run_one () {  # arm_name  env_pin  run_idx
   local name="$1" pin="$2" r="$3" dir="$AB_DIR/${1}_r${3}"
   echo "=== EVAL ${name} run${r} (pin=${pin}) ==="
