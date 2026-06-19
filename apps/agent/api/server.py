@@ -155,6 +155,8 @@ async def ask_endpoint(
 async def ask_stream(
     question: str = Query(..., description="KO/EN question about the valuation."),
     max_steps: int = Query(3, ge=1, le=20, description="Per-branch read budget (initial read + retries)."),
+    source: Literal["auto", "wiki"] = Query(
+        "auto", description="Backend: 'auto' (supervisor — wiki + DART as tools) or 'wiki' (Centroid KB only)."),
     dataset: str | None = Query(None, description="Wiki dataset/version id (e.g. 'v0.2'); "
                                                   "omit for the default. See GET /datasets."),
 ) -> StreamingResponse:
@@ -162,7 +164,8 @@ async def ask_stream(
 
     Inputs are query parameters (the browser drives this with ``EventSource``, which is GET-only
     and can't send a body). Emits one ``step`` event per agent decision (which page it opens and
-    why), a final ``answer`` event, then ``done``. Consume with an EventSource (browser) or
+    why), then the answer streamed as ``token`` events (one fragment each), a final ``answer``
+    event with the joined text, then ``done``. Consume with an EventSource (browser) or
     ``curl -N localhost:5001/ask/stream?question=...``.
     """
     if not question.strip():
@@ -173,7 +176,7 @@ async def ask_stream(
 
     async def gen():
         try:
-            async for ev in astream_run(question, max_steps=max_steps, store=store):
+            async for ev in astream_run(question, max_steps=max_steps, source=source, store=store):
                 etype = ev.pop("type")
                 yield f"event: {etype}\ndata: {json.dumps(ev, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"

@@ -16,6 +16,7 @@ import asyncio
 from typing import Any
 
 from .graph import AgentState, build_app
+from .graph.nodes import synthesize, synthesize_stream
 from .io import INDEX_MD, load_index
 
 
@@ -49,8 +50,10 @@ def answer(question: str, source: str = "auto", max_steps: int = 3,
     ``store`` selects the wiki dataset (ignored by the DART backend, which has no wiki).
     ``save=True`` compounds a grounded wiki answer back onto its page (no-op for DART).
     Returns ``{source, answer, trace, steps}`` — same shape for both backends."""
-    src = route(question) if source == "auto" else source
-    if src == "dart":
+    if source == "auto":
+        from .supervisor import run_supervised  # handoff-tool supervisor (wiki + DART as tools)
+        return run_supervised(question, store=store)
+    if source == "dart":
         from .dart_agent import run_dart
         return {"source": "dart", **run_dart(question)}
     return {"source": "wiki",
@@ -84,7 +87,7 @@ def _renumber(trace: list) -> list:
 
 
 def _limit() -> dict:
-    # planner → solve (fan-out) → auditor → synthesizer = 4 supersteps; give headroom
+    # planner → solve (fan-out) → auditor = 3 supersteps (synthesis runs after the graph); headroom
     return {"recursion_limit": 25}
 
 
@@ -97,14 +100,42 @@ def _resolve_index(store: Any, index: dict | None) -> dict:
     return load_index()
 
 
-def _build_result(final: dict[str, Any]) -> dict[str, Any]:
-    """Extract the four standard result keys from a completed graph state."""
+def _build_result(final: dict[str, Any], answer: str, synth_trace: dict) -> dict[str, Any]:
+    """Assemble the four standard result keys: the post-graph ``answer`` and its trace record
+    merged into the graph's accumulated trace, plus the merged steps/evidence."""
     return {
-        "answer": (final.get("answer") or "(no answer)").strip(),
-        "trace": _renumber(final.get("trace", [])),
+        "answer": (answer or "(no answer)").strip(),
+        "trace": _renumber(list(final.get("trace", [])) + [synth_trace]),
         "steps": final.get("steps", 0),
         "evidence": final.get("evidence", []),
     }
+
+
+async def _aiter_in_thread(make_gen):
+    """Drive a blocking generator (``make_gen()``) in a worker thread, yielding its items on the
+    event loop — so the SSE handler can stream the synchronous ``synthesize_stream`` (urllib) token
+    by token without pinning the loop. Exceptions from the generator are re-raised on the loop."""
+    queue: asyncio.Queue = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+    done = object()
+
+    def produce():
+        try:
+            for item in make_gen():
+                loop.call_soon_threadsafe(queue.put_nowait, item)
+        except Exception as exc:  # noqa: BLE001 — forward to the consumer on the loop
+            loop.call_soon_threadsafe(queue.put_nowait, exc)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, done)
+
+    loop.run_in_executor(None, produce)
+    while True:
+        item = await queue.get()
+        if item is done:
+            break
+        if isinstance(item, Exception):
+            raise item
+        yield item
 
 
 def run(question: str, max_steps: int = 3, verbose: bool = False,
@@ -130,7 +161,8 @@ def run(question: str, max_steps: int = 3, verbose: bool = False,
     if app is None:
         app = build_app(_resolve_index(store, index))
     final: dict[str, Any] = app.invoke(_seed(question, max_steps, verbose, store), config=_limit())
-    result = _build_result(final)
+    answer, synth_trace = synthesize(final)  # graph ends at auditor; write the answer here
+    result = _build_result(final, answer, synth_trace)
     if save:
         from .io import persist_answer
         result["saved"] = persist_answer(
@@ -153,16 +185,20 @@ async def arun(question: str, max_steps: int = 3, verbose: bool = False,
     if app is None:
         app = build_app(_resolve_index(store, index))
     final: dict[str, Any] = await app.ainvoke(_seed(question, max_steps, verbose, store), config=_limit())
-    return _build_result(final)
+    answer, synth_trace = await asyncio.to_thread(synthesize, final)  # blocking call off the loop
+    return _build_result(final, answer, synth_trace)
 
 
 async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
                   verbose: bool = False, index: dict | None = None,
                   store: Any = None) -> dict[str, Any]:
-    """Async twin of :func:`answer`: route (or honor ``source``) and dispatch. The sync backends
-    (``route`` classifier, DART tool agent) run via ``to_thread`` so they don't block the loop."""
-    src = (await asyncio.to_thread(route, question)) if source == "auto" else source
-    if src == "dart":
+    """Async twin of :func:`answer`: dispatch by ``source``. ``"auto"`` runs the handoff-tool
+    supervisor (wiki + DART as tools); explicit ``"wiki"``/``"dart"`` go straight to that
+    backend (the sync DART agent runs via ``to_thread`` so it doesn't block the loop)."""
+    if source == "auto":
+        from .supervisor import arun_supervised  # handoff-tool supervisor (wiki + DART as tools)
+        return await arun_supervised(question, store=store)
+    if source == "dart":
         from .dart_agent import run_dart
         return {"source": "dart", **(await asyncio.to_thread(run_dart, question))}
     return {"source": "wiki",
@@ -172,12 +208,13 @@ async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
 def stream_run(question: str, max_steps: int = 3, index: dict | None = None, store: Any = None):
     """Generator yielding routing events as the agent navigates, for live (SSE) display.
 
-    Uses LangGraph's native ``app.stream(stream_mode="values")``: after every node the
-    full state is emitted, so new ``trace`` entries surface as the agent makes each
-    decision. Event dicts carry a ``type``:
+    Uses LangGraph's native ``app.stream(stream_mode="values")`` for the routing steps; the graph
+    ends at the auditor, then the answer is streamed token by token via ``synthesize_stream``.
+    Event dicts carry a ``type``:
 
       {"type": "step",   "step": int, "action": str, "arg": str, "thought": str}
-      {"type": "answer", "answer": str, "steps": int}
+      {"type": "token",  "text": str}                 # one per answer fragment, in order
+      {"type": "answer", "answer": str, "steps": int} # the joined final answer (last)
     """
     app = build_app(_resolve_index(store, index))
     emitted = 0
@@ -186,20 +223,33 @@ def stream_run(question: str, max_steps: int = 3, index: dict | None = None, sto
                             stream_mode="values"):
         final = state
         trace = state.get("trace", [])
-        while emitted < len(trace):                       # surface each new decision
+        while emitted < len(trace):                       # surface each routing decision
             e = dict(trace[emitted])
             e["step"] = emitted                           # running global step (branches merge)
             yield {"type": "step", **e}
             emitted += 1
-    if final.get("answer"):
-        yield {"type": "answer", "answer": final["answer"], "steps": final.get("steps", 0)}
+    parts: list[str] = []                                 # graph done → stream the answer tokens
+    for delta in synthesize_stream(final):
+        parts.append(delta)
+        yield {"type": "token", "text": delta}
+    yield {"type": "answer", "answer": "".join(parts).strip() or "(답변 없음)",
+           "steps": final.get("steps", 0)}
 
 
 async def astream_run(question: str, max_steps: int = 3, index: dict | None = None,
-                      store: Any = None):
+                      store: Any = None, source: str = "wiki"):
     """Async twin of :func:`stream_run` — an async generator over ``app.astream`` so the SSE
     endpoint can stream without pinning a threadpool thread for the connection's lifetime. Emits
-    the same ``step``/``answer`` event dicts; LangGraph runs the sync nodes in its executor."""
+    the same ``step``/``token``/``answer`` event dicts; LangGraph runs the sync nodes in its
+    executor, and the blocking token stream runs in a worker thread via ``_aiter_in_thread``.
+
+    ``source="auto"`` delegates to the handoff-tool supervisor (``supervisor.astream_supervised``),
+    which yields the same event shape; ``"wiki"`` (the default) streams the wiki graph directly."""
+    if source == "auto":
+        from .supervisor import astream_supervised
+        async for ev in astream_supervised(question, store=store):
+            yield ev
+        return
     app = build_app(_resolve_index(store, index))
     emitted = 0
     final: dict[str, Any] = {}
@@ -212,5 +262,9 @@ async def astream_run(question: str, max_steps: int = 3, index: dict | None = No
             e["step"] = emitted
             yield {"type": "step", **e}
             emitted += 1
-    if final.get("answer"):
-        yield {"type": "answer", "answer": final["answer"], "steps": final.get("steps", 0)}
+    parts: list[str] = []                                 # graph done → stream the answer tokens
+    async for delta in _aiter_in_thread(lambda: synthesize_stream(final)):
+        parts.append(delta)
+        yield {"type": "token", "text": delta}
+    yield {"type": "answer", "answer": "".join(parts).strip() or "(답변 없음)",
+           "steps": final.get("steps", 0)}
