@@ -359,25 +359,16 @@ def solve_node(state: AgentState, index: dict) -> AgentState:
 
 
 # --------------------------------------------------------------------------- auditor
-def _is_pdf_page(meta: dict) -> bool:
-    """Whether a page came from the FDD PDF (vs the Excel workbook). PDF pages carry a
-    `pdf …` kind / a `… (PDF)` section in the index; Excel pages don't. Used to tell a
-    report *claim* apart from a source-of-truth Excel value."""
-    blob = f"{meta.get('kind', '')} {meta.get('section', '')}".lower()
-    return "pdf" in blob
-
-
 def auditor_node(state: AgentState, index: dict) -> AgentState:
     """Deterministic cross-evidence audit between the solve barrier and the synthesizer.
 
     The per-branch verifier only asks "did THIS sub-question get evidence?" — it never sees
     the merged set, so it can't catch a reconciliation that cited the *same* cell for two
-    opposed quantities (fabricated agreement), a report *claim* mistaken for source data, or a
-    planned sub-question that found nothing. These are exactly the over-claiming failures.
-    The checks are rule-based (no LLM) so they can't hallucinate and won't touch the answers
-    that are already right; they only append caveats the synthesizer must honor."""
+    opposed quantities (fabricated agreement), or a planned sub-question that found nothing.
+    These are exactly the over-claiming failures. The checks are rule-based (no LLM) so they
+    can't hallucinate and won't touch the answers that are already right; they only append
+    caveats the synthesizer must honor. (``index`` is kept for the build.py call signature.)"""
     ev = state.get("evidence", [])
-    pages = index.get("pages", {})
     caveats: list[str] = []
 
     # 1) same (page,cell) used as evidence for >=2 distinct sub-questions. For a "A vs B"
@@ -401,20 +392,7 @@ def auditor_node(state: AgentState, index: dict) -> AgentState:
                 f"'일치/동일하다'라고 단정하지 말 것 — 한쪽 출처는 실제로 확인되지 않았을 수 있음."
             )
 
-    # 2) a sub-question whose evidence is ENTIRELY from PDF/report pages. The PDF *is* the
-    #    source for "what does the report show?" questions, so this is NOT a reason to decline —
-    #    answer with the report figure, but flag that it's report-based (unit/asof/definition
-    #    may differ from the Excel source). It only becomes "확인 불가" if there is no evidence
-    #    at all (handled by check 3).
-    for ask, items in ask_ev.items():
-        if items and all(_is_pdf_page(pages.get(e["page"], {})) for e in items):
-            caveats.append(
-                f"하위질문 '{ask}' 의 근거는 리포트(PDF) 페이지에서 나옴 — 리포트 기준 수치이므로 "
-                f"그대로 답하되, 엑셀 원본과 단위·정의·기준일이 다를 수 있음을 한 줄로 덧붙일 것. "
-                f"(원본 미확인을 이유로 '확인 불가' 처리하지 말 것.)"
-            )
-
-    # 3) a planned sub-question that collected no evidence at all → that part is unverifiable.
+    # 2) a planned sub-question that collected no evidence at all → that part is unverifiable.
     answered = set(ask_ev)
     for p in state.get("plan", []):
         if p.get("ask") and p["ask"] not in answered:
