@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from src.stella_kb import config
 from src.stella_kb.llm import chat, chat_stream
 
-from ...io import (
+from ...retrieval import (
     cross_ref_partners,
     extract_page_items,
     lookup,

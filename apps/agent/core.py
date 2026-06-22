@@ -3,7 +3,7 @@
 Each seeds the multi-agent pipeline (``apps.agent.agents.wiki``: planner → router → retriever →
 verifier → synthesizer) with the wiki's ``INDEX.md`` table of contents and the question,
 then drives it to a cited Korean answer. The router is handed the ToC and must navigate to
-the right page on its own, using only the deterministic ``apps.agent.io`` reads.
+the right page on its own, using only the deterministic ``apps.agent.retrieval`` reads.
 
   - ``run``         → ``{answer, trace, steps}`` (trace = the per-agent routing record)
   - ``ask``         → just the answer string
@@ -17,7 +17,7 @@ from typing import Any
 
 from .agents.wiki import AgentState, build_app
 from .agents.wiki.nodes import synthesize, synthesize_stream
-from .io import INDEX_MD, load_index
+from .retrieval import INDEX_MD, load_index
 
 
 def route(question: str) -> str:
@@ -54,7 +54,7 @@ def answer(question: str, source: str = "auto", max_steps: int = 3,
         from .agents.supervisor import run_supervised  # supervisor StateGraph (wiki + DART worker nodes)
         return run_supervised(question, store=store)
     if source == "dart":
-        from .agents.dart_agent import run_dart
+        from .agents.dart import run_dart
         return {"source": "dart", **run_dart(question)}
     return {"source": "wiki",
             **run(question, max_steps=max_steps, verbose=verbose, index=index, store=store,
@@ -164,7 +164,7 @@ def run(question: str, max_steps: int = 3, verbose: bool = False,
     answer, synth_trace = synthesize(final)  # graph ends at auditor; write the answer here
     result = _build_result(final, answer, synth_trace)
     if save:
-        from .io import persist_answer
+        from .retrieval import persist_answer
         result["saved"] = persist_answer(
             question, result["answer"], result["evidence"],
             wiki_dir=(str(store.wiki_dir) if store is not None else None))
@@ -199,7 +199,7 @@ async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
         from .agents.supervisor import arun_supervised  # supervisor StateGraph (wiki + DART worker nodes)
         return await arun_supervised(question, store=store)
     if source == "dart":
-        from .agents.dart_agent import run_dart
+        from .agents.dart import run_dart
         return {"source": "dart", **(await asyncio.to_thread(run_dart, question))}
     return {"source": "wiki",
             **(await arun(question, max_steps=max_steps, verbose=verbose, index=index, store=store))}

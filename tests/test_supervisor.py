@@ -1,7 +1,7 @@
 """Supervisor StateGraph — tested deterministically (offline, no LLM / no network).
 
 The supervisor decides via a JSON completion (``supervisor.chat``) and dispatches to wiki/dart
-worker nodes; here ``chat`` is scripted and the workers (``core.arun`` / ``dart_agent._arun``)
+worker nodes; here ``chat`` is scripted and the workers (``core.arun`` / ``dart._arun``)
 are stubbed, so we drive the *real compiled graph* and assert routing, passthrough vs merge,
 the trace/source bookkeeping, the per-request ``store`` threading, and the fallback path —
 without touching gemma-4. The live end-to-end run is the ``__main__`` smoke, not here.
@@ -91,7 +91,7 @@ def _stub_workers(monkeypatch, wiki="위키 답변", dart="다트 답변", seen=
                 "steps": 1}
 
     monkeypatch.setattr("apps.agent.core.arun", fake_arun)
-    monkeypatch.setattr("apps.agent.agents.dart_agent._arun", fake_dart)
+    monkeypatch.setattr("apps.agent.agents.dart._arun", fake_dart)
 
 
 def test_single_wiki_passthrough(monkeypatch):
@@ -146,7 +146,7 @@ def test_graph_failure_falls_back_to_route(monkeypatch):
 
     async def fake_dart(q):
         return {"answer": "다트 폴백", "trace": [], "steps": 1}
-    monkeypatch.setattr("apps.agent.agents.dart_agent._arun", fake_dart)
+    monkeypatch.setattr("apps.agent.agents.dart._arun", fake_dart)
 
     out = supervisor.run_supervised("삼성전자 매출?")
     assert out["source"] == "dart"

@@ -29,7 +29,7 @@ again. Per-request :class:`apps.agent.datasets.WikiStore` (``store``) is closed 
 wiki node, so concurrency safety is preserved. On any failure the whole thing degrades to
 ``core.route`` + direct dispatch, so a flaky round never hard-fails a request.
 
-Config (env), shared with ``dart_agent``:
+Config (env), shared with ``dart``:
     STELLA_TOOL_LLM_URL / STELLA_TOOL_LLM_MODEL   (unused here — kept for the dart worker)
 """
 
@@ -41,7 +41,7 @@ from typing import Annotated, Any, TypedDict
 
 from src.stella_kb.llm import chat
 
-from .dart_agent import _clean
+from .dart import _clean
 from .wiki.nodes import parse_action
 from ..prompts import load as load_prompt
 
@@ -189,7 +189,7 @@ async def _dart_node(state: SupervisorState):
     """DART worker node — the public-company tool-calling agent."""
     from langgraph.types import Command
 
-    from .dart_agent import _arun as dart_arun
+    from .dart import _arun as dart_arun
     q = state.get("next_query") or state["question"]
     out = await dart_arun(q)
     ans = out.get("answer", "")
@@ -271,7 +271,7 @@ async def _fallback(question: str, store: Any) -> dict:
     except Exception:  # noqa: BLE001 — routing must never hard-fail
         src = "wiki"
     if src == "dart":
-        from .dart_agent import _arun as dart_arun
+        from .dart import _arun as dart_arun
         return {"source": "dart", **(await dart_arun(question))}
     out = await arun(question, store=store)
     return {"source": "wiki", "answer": out["answer"], "trace": out["trace"],

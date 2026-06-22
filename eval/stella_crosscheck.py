@@ -289,7 +289,7 @@ def load_questions() -> list[dict]:
 def _point_agent_at_eval_index():
     """Rebind the agent's IO paths to EVAL_DIR and return the loaded eval index dict."""
     from apps.agent import core
-    from apps.agent.io import tools
+    from apps.agent.retrieval import tools
 
     tools.PAGES_DIR = PAGES_DIR            # open_page reads this module global
     tools.INDEX_JSON = INDEX_JSON

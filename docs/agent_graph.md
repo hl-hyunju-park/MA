@@ -52,7 +52,7 @@ flowchart TD;
     direction TB;
     SA["🧭 supervisor node<br/><i>JSON decision (stdlib chat): next ∈ wiki|dart|FINISH</i>"];
     TW["➡ Command(goto=&quot;wiki&quot;)<br/><i>→ core.arun(next_query, store)</i>"];
-    TD["➡ Command(goto=&quot;dart&quot;)<br/><i>→ dart_agent._arun(next_query)</i>"];
+    TD["➡ Command(goto=&quot;dart&quot;)<br/><i>→ dart._arun(next_query)</i>"];
     SA -- "route" --> TW;
     SA -- "route (then the other for composite)" --> TD;
     SA -- "FINISH / capped" --> SC["📝 compose node<br/><i>1 source → passthrough (verbatim)<br/>≥2 → LLM merge · same answer buffered+streamed</i>"];
@@ -76,7 +76,7 @@ flowchart TD;
     AU --> SY["📝 synthesize<br/><i>runs AFTER the graph → streamable</i>"];
   end;
 
-  subgraph DART["dart backend — native tool-calling (agents/dart_agent.py)"];
+  subgraph DART["dart backend — native tool-calling (agents/dart.py)"];
     direction TB;
     DA["🤖 create_agent loop<br/><i>tool-LLM :8001 picks a DART tool + args</i>"];
     DT[("DART MCP tools")];
@@ -112,7 +112,7 @@ routes via a plain JSON decision on the same stdlib `chat` the wiki retrieval us
   worker. Returns `Command(goto=…)`. Guards: never re-calls a worker already in `called`, caps
   at `_MAX_TURNS` visits, and **never finishes empty-handed** — a FINISH before any worker ran
   is overridden to ground via the wiki.
-- **`wiki` / `dart` worker nodes.** Run the existing backend (`core.arun` / `dart_agent._arun`)
+- **`wiki` / `dart` worker nodes.** Run the existing backend (`core.arun` / `dart._arun`)
   on the supervisor's `next_query`, then `Command(goto="supervisor")`. The wiki node is a
   closure over the per-request `WikiStore` (`store`), so the dataset threads in concurrency-safely.
   Each appends its worker trace (namespaced `wiki:*` / `dart:*`) + a `[supervisor] result` record
@@ -197,7 +197,7 @@ and the per-page extraction stay local inside `solve_node`. They return only the
 
 ## DART backend — tool-calling loop
 
-`dart_agent._arun()` (sync wrapper `run_dart()`) builds a LangChain `create_agent` over the
+`dart._arun()` (sync wrapper `run_dart()`) builds a LangChain `create_agent` over the
 DART MCP tools (fetched from the SSE server with a bearer token) and a tools-capable gemma-4
 model. The model loops: call a DART tool → read the result → call again or answer. Network/LLM
 failures degrade to an error string in the answer rather than raising, so the supervisor/router

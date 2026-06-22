@@ -308,7 +308,7 @@ def test_router_cap_also_bounds_curated_routes(monkeypatch):
     assert picks == ["P0", "P1"]  # curated list capped too
 
 
-# --- committed curation: version-token → curation/<version>/{decks,routes}.yaml --------
+# --- committed curation: version-token → data/<version>/{decks,routes}.yaml --------
 
 def test_version_token_handles_data_and_wiki_dirs():
     from src.stella_kb.config import _version_token
@@ -322,7 +322,7 @@ def test_curation_paths_default_into_committed_tree(monkeypatch):
 
     monkeypatch.delenv("MNA_WIKI_DECKS", raising=False)
     monkeypatch.delenv("MNA_AGENT_ROUTES", raising=False)
-    monkeypatch.setattr(config, "curation_dir", lambda: __import__("pathlib").Path("curation"))
+    monkeypatch.setattr(config, "curation_dir", lambda: __import__("pathlib").Path("data"))
     monkeypatch.setattr(config, "wiki_data_dir", lambda: __import__("pathlib").Path("data/v0.2"))
-    assert config.wiki_decks_yaml().as_posix() == "curation/v0.2/decks.yaml"
-    assert config.agent_routes_yaml("data/v0.2/wiki").as_posix() == "curation/v0.2/routes.yaml"
+    assert config.wiki_decks_yaml().as_posix() == "data/v0.2/decks.yaml"
+    assert config.agent_routes_yaml("data/v0.2/wiki").as_posix() == "data/v0.2/routes.yaml"

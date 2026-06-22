@@ -58,14 +58,15 @@ Patterns we adopt:
 
 ## Layout & commands
 
-**`data/` is versioned** — each corpus version is self-contained under `data/<version>/`; all of
-it is gitignored (regenerable). Code resolves paths through `config.py` (env > config.yaml >
+**`data/` is versioned** — each corpus version is self-contained under `data/<version>/`;
+gitignored (regenerable) **except** the per-version curation (`decks.yaml`/`routes.yaml`), which is
+committed via a `.gitignore` exception. Code resolves paths through `config.py` (env > config.yaml >
 default), so a version is built/served/evaluated by pointing the env at its dir, not editing code.
 
 ```
-data/                       # versioned build artifacts + corpora (gitignored)
-  v0.1/ { raw md parsed wiki derived }   # canonical 63-sheet Centroid model — the DEFAULT dataset
-  v0.2/ { raw md parsed wiki }           # multi-deck test corpus: Excel ledgers + CAESAR/LIFE/STELLA FDD decks
+data/                       # versioned build artifacts + corpora (gitignored; curation yamls committed)
+  v0.1/ { raw md parsed wiki derived  + decks.yaml routes.yaml }   # canonical 63-sheet Centroid model — DEFAULT
+  v0.2/ { raw md parsed wiki  + decks.yaml routes.yaml }           # multi-deck test: Excel ledgers + CAESAR/LIFE/STELLA FDD
   eval/ { stella_crosscheck/, v0.2/{final,multi} }   # eval outputs
   graph/ { stella_graph.json, stella_semantic.json } # graph-paradigm artifacts
   logs/
@@ -90,9 +91,9 @@ apps/agent/               # query agent (separate from the build pipeline)
   datasets.py             # dataset (wiki VERSION) registry + cached WikiStore  (id -> wiki dir)
   agents/                 # the agent backends (core dispatches here)
     supervisor.py         #   supervisor StateGraph: routes/merges wiki+dart worker nodes; streaming fast-path
-    dart_agent.py         #   DART tool-calling backend (public-company questions)
+    dart.py               #   DART tool-calling backend (public-company questions)
     wiki/                 #   wiki LangGraph: state/nodes/build  (wiki_dir threaded through state, not a global)
-  io/tools.py             # deterministic wiki access (lookup/open_page/query_ledger/trace_links); per-request wiki_dir
+  retrieval/tools.py      # deterministic wiki access (lookup/open_page/query_ledger/trace_links); per-request wiki_dir
   api/                    # FastAPI: /ask (GET) · /ask/stream (GET SSE) · /datasets · /health  + schema/ (pydantic)
 frontend/                 # React+Vite chat UI; components/DatasetPicker selects wiki version; proxies API -> :5001
 eval/
