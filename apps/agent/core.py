@@ -1,6 +1,6 @@
 """Public API of the wiki query agent: ``run`` / ``ask`` / ``stream_run``.
 
-Each seeds the multi-agent pipeline (``apps.agent.agents.wiki``: planner → router → retriever →
+Each seeds the multi-agent pipeline (``apps.agent.backends.wiki``: planner → router → retriever →
 verifier → synthesizer) with the wiki's ``INDEX.md`` table of contents and the question,
 then drives it to a cited Korean answer. The router is handed the ToC and must navigate to
 the right page on its own, using only the deterministic ``apps.agent.retrieval`` reads.
@@ -15,8 +15,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from .agents.wiki import AgentState, build_app
-from .agents.wiki.nodes import synthesize, synthesize_stream
+from .backends.wiki import AgentState, build_app
+from .backends.wiki.nodes import synthesize, synthesize_stream
 from .retrieval import INDEX_MD, load_index
 
 
@@ -26,7 +26,7 @@ def route(question: str) -> str:
     needed); defaults to ``"wiki"`` on any parse/endpoint failure."""
     from src.stella_kb.llm import chat
 
-    from .agents.wiki.nodes import parse_action
+    from .backends.wiki.nodes import parse_action
     from .prompts import load as load_prompt
 
     try:
@@ -51,10 +51,10 @@ def answer(question: str, source: str = "auto", max_steps: int = 3,
     ``save=True`` compounds a grounded wiki answer back onto its page (no-op for DART).
     Returns ``{source, answer, trace, steps}`` — same shape for both backends."""
     if source == "auto":
-        from .agents.supervisor import run_supervised  # supervisor StateGraph (wiki + DART worker nodes)
+        from .backends.supervisor import run_supervised  # supervisor StateGraph (wiki + DART worker nodes)
         return run_supervised(question, store=store)
     if source == "dart":
-        from .agents.dart import run_dart
+        from .backends.dart import run_dart
         return {"source": "dart", **run_dart(question)}
     return {"source": "wiki",
             **run(question, max_steps=max_steps, verbose=verbose, index=index, store=store,
@@ -196,10 +196,10 @@ async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
     StateGraph (wiki + DART worker nodes); explicit ``"wiki"``/``"dart"`` go straight to that
     backend (the sync DART agent runs via ``to_thread`` so it doesn't block the loop)."""
     if source == "auto":
-        from .agents.supervisor import arun_supervised  # supervisor StateGraph (wiki + DART worker nodes)
+        from .backends.supervisor import arun_supervised  # supervisor StateGraph (wiki + DART worker nodes)
         return await arun_supervised(question, store=store)
     if source == "dart":
-        from .agents.dart import run_dart
+        from .backends.dart import run_dart
         return {"source": "dart", **(await asyncio.to_thread(run_dart, question))}
     return {"source": "wiki",
             **(await arun(question, max_steps=max_steps, verbose=verbose, index=index, store=store))}
@@ -244,7 +244,7 @@ async def astream_run(question: str, max_steps: int = 3, index: dict | None = No
     ``source="auto"`` delegates to the supervisor StateGraph (``supervisor.astream_supervised``),
     which yields the same event shape; ``"wiki"`` (the default) streams the wiki graph directly."""
     if source == "auto":
-        from .agents.supervisor import astream_supervised
+        from .backends.supervisor import astream_supervised
         async for ev in astream_supervised(question, store=store):
             yield ev
         return

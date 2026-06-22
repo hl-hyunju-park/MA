@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from apps.agent.agents.wiki.nodes import parse_action
+from apps.agent.backends.wiki.nodes import parse_action
 from apps.agent.retrieval import (
     cross_ref_partners,
     extract_page_items,

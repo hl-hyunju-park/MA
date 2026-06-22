@@ -344,15 +344,15 @@ def run_eval(workers: int = 8, source: str | None = None) -> None:
     ``app``) or ``"auto"`` (the supervisor StateGraph — ``app`` is unused; its wiki node
     compiles its own from the same rebound eval index)."""
     from apps.agent import core
-    from apps.agent.agents.wiki import build_app, nodes
+    from apps.agent.backends.wiki import build_app, engine
 
     source = source or EVAL_SOURCE
     index = _point_agent_at_eval_index()
     qs = load_questions()
     workers = min(workers, len(qs))
-    nodes.set_fanout(config.eval_fanout(default=workers))  # don't starve workers
+    engine.set_fanout(config.eval_fanout(default=workers))  # don't starve workers
     app = build_app(index)                                                # compile once, reuse
-    print(f"answering {len(qs)} questions · {workers} workers · fanout {nodes._FANOUT} · source={source}")
+    print(f"answering {len(qs)} questions · {workers} workers · fanout {engine._FANOUT} · source={source}")
     with ThreadPoolExecutor(max_workers=workers) as ex:
         results = list(ex.map(lambda q: _answer_one(q, app, source), qs))
     order = {q["id"]: i for i, q in enumerate(qs)}        # restore original question order

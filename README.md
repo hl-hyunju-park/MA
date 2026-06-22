@@ -60,9 +60,9 @@ src/stella_kb/        # KB 빌드 파이프라인
   parsers/pdf/        # 비전 기반 PDF 파서 (표·[그래프]·[다이어그램] 추출)
   llm.py  config.py   # OpenAI 호환 vLLM 클라이언트 · 중앙 설정(env > config.yaml > default; 경로 접근자)
 apps/agent/           # 질의 에이전트
-  core.py             # 공개 API/파사드: run / ask / answer(라우터) / stream_run — agents/ 백엔드로 분기
+  core.py             # 공개 API/파사드: run / ask / answer(라우터) / stream_run — backends/ 백엔드로 분기
   datasets.py         # 데이터셋(위키 버전) 레지스트리 + 캐시 WikiStore (id → 위키 디렉터리)
-  agents/             # 에이전트 백엔드 (core가 여기로 분기)
+  backends/             # 에이전트 백엔드 (core가 여기로 분기)
     supervisor.py     #   supervisor StateGraph: wiki/dart 워커 라우팅·병합, 스트리밍 fast-path
     dart.py           #   DART(상장사) tool-calling 백엔드
     wiki/             #   wiki LangGraph: state · nodes(planner/solve/auditor/synthesizer) · build

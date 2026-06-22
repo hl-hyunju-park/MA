@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Drive the supervisor StateGraph (apps.agent.agents.supervisor) on one question from the CLI.
+# Drive the supervisor StateGraph (apps.agent.backends.supervisor) on one question from the CLI.
 #
 # The supervisor node routes (via a JSON decision on gemma-4 :8001 — no tool-calling) to the
 # wiki/dart worker nodes via Command(goto=…); a single source is passed through verbatim, two
@@ -34,4 +34,4 @@ if ! "$PY" -c "import sys; from apps.agent import datasets; sys.exit(0 if datase
   exit 1
 fi
 
-exec "$PY" -m apps.agent.agents.supervisor "$@"
+exec "$PY" -m apps.agent.backends.supervisor "$@"
