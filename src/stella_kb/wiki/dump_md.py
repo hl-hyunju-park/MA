@@ -18,7 +18,7 @@ recalculated — recalc the .xlsx in LibreOffice first if the grid looks empty.
 
 Usage (from repo root, with venv active):
     python -m src.stella_kb.wiki.dump_md --list                 # list sheet names
-    python -m src.stella_kb.wiki.dump_md "DCF"                  # one sheet -> data/md/DCF.md
+    python -m src.stella_kb.wiki.dump_md "DCF"                  # one sheet -> knowledge/md/DCF.md
     python -m src.stella_kb.wiki.dump_md "DCF" "AUM Projection" # several
     python -m src.stella_kb.wiki.dump_md --all                  # every sheet
 """

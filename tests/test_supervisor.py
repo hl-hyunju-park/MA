@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 
-from apps.agent.backends import supervisor
+from apps.agent.cores import supervisor
 
 
 # --- pure helpers ----------------------------------------------------------------------
@@ -91,7 +91,7 @@ def _stub_workers(monkeypatch, wiki="위키 답변", dart="다트 답변", seen=
                 "steps": 1}
 
     monkeypatch.setattr("apps.agent.core.arun", fake_arun)
-    monkeypatch.setattr("apps.agent.backends.dart._arun", fake_dart)
+    monkeypatch.setattr("apps.agent.cores.dart._arun", fake_dart)
 
 
 def test_single_wiki_passthrough(monkeypatch):
@@ -146,7 +146,7 @@ def test_graph_failure_falls_back_to_route(monkeypatch):
 
     async def fake_dart(q):
         return {"answer": "다트 폴백", "trace": [], "steps": 1}
-    monkeypatch.setattr("apps.agent.backends.dart._arun", fake_dart)
+    monkeypatch.setattr("apps.agent.cores.dart._arun", fake_dart)
 
     out = supervisor.run_supervised("삼성전자 매출?")
     assert out["source"] == "dart"

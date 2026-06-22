@@ -41,8 +41,9 @@ def set_pin(pin, prev):
 def main():
     a = parse_args()
     os.environ["EVAL_DATASET"] = a.dataset
-    from apps.agent import core, datasets
-    from apps.agent.backends.wiki import build_app
+    from apps.agent import core
+    from apps.agent.utils import datasets
+    from apps.agent.cores.wiki import build_app
 
     qids = json.load(open(a.qids))
     qmap = {q["id"]: q for q in

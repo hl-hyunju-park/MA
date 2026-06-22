@@ -33,24 +33,27 @@ dart:
   mcp_url: http://127.0.0.1:8002/sse   # env: DART_MCP_URL  (non-secret; token stays in .env)
 
 agent:
-  wiki_dir: data/v0.1/wiki   # env: MNA_AGENT_WIKI  — the 'default' dataset the agent serves
+  wiki_dir: knowledge/v0.2/wiki   # env: MNA_AGENT_WIKI  — the 'default' dataset the agent serves
   # Named dataset (wiki version) registry: id -> built wiki dir (index.json + pages/ + ledgers/).
   # The API selects one per request via the "dataset" payload param (a safe id, never a path).
-  # Each corpus version is self-contained under data/<version>/. Register a new one here after
-  # building it (run_pipeline.sh with MNA_WIKI_DATA=data/<version>).
+  # Each corpus version is self-contained under knowledge/<version>/. Register a new one here after
+  # building it (run_pipeline.sh with MNA_WIKI_DATA=knowledge/<version>).
   datasets:
-    v0.1: data/v0.1/wiki   # canonical Centroid valuation-model wiki (63-sheet model)
-    v0.2: data/v0.2/wiki       # v0.2 test corpus: Excel ledgers + CAESAR/LIFE/STELLA FDD decks
-  router_top_k: 3            # env: MNA_ROUTER_TOPK — max pages the router opens per round
+    v0.1: knowledge/v0.1/wiki   # canonical Centroid valuation-model wiki (63-sheet model)
+    v0.2: knowledge/v0.2/wiki       # v0.2 test corpus: Excel ledgers + CAESAR/LIFE/STELLA FDD decks
+  router_top_k: 5            # env: MNA_ROUTER_TOPK — max pages the router opens per round
   deterministic_retrieve: false  # env: MNA_DET_RETRIEVE — parse 'value [cell]' tables instead
                                  # of an LLM call per structured page; off pending a quality A/B
+  semantic_resolve: false    # env: MNA_SEMANTIC_RESOLVE — try-1 closed-set page resolver (one
+                             # whitelist-guarded LLM call over the page catalog) instead of
+                             # substring lookup→router; bridges KO/EN vocab; off pending a quality A/B
   # routes:                 # env: MNA_AGENT_ROUTES — explicit routes.yaml (single-dataset only)
 
-# Hand-authored, version-controlled curation: per dataset version under data/<version>/ —
+# Hand-authored, version-controlled curation: per dataset version under knowledge/<version>/ —
 # decks.yaml (build-time deck descriptions) + routes.yaml (query-time routing shortcuts). These
-# are committed even though the rest of data/ is gitignored (a .gitignore exception keeps the two
-# yamls tracked). See src/stella_kb/config.py: curation_dir / wiki_decks_yaml / agent_routes_yaml.
+# are committed even though the rest of knowledge/ is gitignored (a .gitignore exception keeps the
+# two yamls tracked). See src/stella_kb/config.py: curation_dir / wiki_decks_yaml / agent_routes_yaml.
 # Paths resolve per-version from the wiki/data dir; envs MNA_AGENT_ROUTES / MNA_WIKI_DECKS pin an
 # explicit file and are SINGLE-DATASET only (they override the per-version resolution for all).
 curation:
-  dir: data                 # env: MNA_CURATION_DIR — per-version files live at data/<version>/
+  dir: knowledge            # env: MNA_CURATION_DIR — per-version files live at knowledge/<version>/

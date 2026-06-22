@@ -79,6 +79,14 @@ export default function App() {
           <div className="sub">센트로이드 인베스트먼트 M&amp;A 밸류에이션 · 벡터리스 위키 에이전트</div>
         </div>
         <DatasetPicker value={dataset} onChange={setDataset} disabled={busy} />
+        <button
+          className="refresh-btn"
+          title="대화 초기화"
+          disabled={busy}
+          onClick={() => { setTurns([]); setInput(""); }}
+        >
+          ↺
+        </button>
         <StatusBadge />
       </header>
 

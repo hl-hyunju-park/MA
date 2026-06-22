@@ -1,0 +1,77 @@
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_semantic/base_r1 cmds=['eval']
+answering 54 questions · dataset=v0.2 (55 pages) · 8 workers
+--- S01 (STELLA/C3-structural)  네, 스텔라 지배구조상 모회사가 20% 미만의 소액 지분만 직접 보유하고 있는 펀드들이 존재합니다. 해당 펀드와 지분율은 다음
+--- S07 (STELLA/C3-structural)  스텔라 골프산업 거래배수(EV/EBITDA)의 연도별 상·하단 격차를 분석한 결과는 다음과 같습니다.  연도별 격차 계산 결과
+--- S08 (STELLA/C3-structural)  스텔라가 운용하는 펀드 중 설정일과 만기일 기준 존속기간이 가장 긴 펀드는 센트로이드제2호바이아웃입니다.  해당 펀드의 상세 
+--- S04 (STELLA/C3-structural)  스텔라 가치평가 결과, DCF(Deloitte Case)로 산출한 지분가치가 시장가치 접근법(GPC·GTC)의 중위값보다 높게
+--- S03 (STELLA/C3-structural)  스텔라 최초 인수 당시의 투자 구조 및 자금 흐름은 다음과 같습니다.  자금은 센트로이드제2호 바이아웃 PE Fund, 대주주
+--- S06 (STELLA/C2-visualonly)  스텔라 Management Case와 Deloitte Case의 지분가치 차이에 영향을 주는 투자자산 회수가치(Exit Val
+--- S09 (STELLA/C3-structural)  제공된 evidence에 따르면, 스텔라(센트로이드 인베스트먼트파트너스)가 운용 중인 펀드 중 현재 기준 수익률(IRR)이 마
+--- S05 (STELLA/C1-binding)  FY24부터 FY29까지 매년 운용펀드 규모(AUM) 전망치는 Management Case가 Deloitte Case보다 더 
+--- S02 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)가 100% 지분을 보유한 자회사는 센트로이드매니지먼트이며 (`FDD3, page FDD
+--- S16 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역의 매도가능증권 Dec-23 잔액은 12,296(`FDD12, page FDD12`)입니다. 이는 BS
+--- S12 (STELLA/C4-reconcile)  스텔라의 FY23 영업비용은 FDD 보고서상 7,278백만원(`FDD13, page FDD13` 및 `FDD2, page FD
+--- S15 (STELLA/C4-reconcile)  스텔라 센트로이드인베스트먼트파트너스의 FY23 영업수익은 FDD 보고서 기준 13,020백만원(`FDD13, page FDD1
+--- S14 (STELLA/C2-visualonly)  스텔라의 출자자별 출자금액 중 가장 많이 출자한 단일 LP는 새마을금고이며, 출자금액은 5,900억원(`FDD11, page 
+--- S20 (STELLA/C3-structural)  스텔라 Deloitte Case DCF에서 영구성장률을 1.0%로 고정했을 때, WACC가 13.5%에서 17.5%로 상승하면
+--- S18 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역상 장기대여금의 Dec-23 잔액은 9,375(`FDD12, page FDD12 — [STELLA] A
+--- S19 (STELLA/C1-binding)  스텔라 Deloitte Case DCF 민감도 분석 결과, WACC 15.5% 및 영구성장률(PGR) 1.0% 조건에서의 지분
+--- S10 (STELLA/C1-binding)  스텔라의 FY24~FY29 기간 동안 Operating Revenue(관리보수) 전망을 비교한 결과, 전 기간에 걸쳐 Mana
+--- S21 (STELLA/C2-visualonly)  스텔라 Deloitte Case DCF 민감도 분석에서 지분가치가 가장 커지는 조합은 WACC 13.5% (`FDD17`) 및
+--- S22 (STELLA/C1-binding)  스텔라 상장사 비교(GPC)에서 EV/EBITDA 배수가 가장 낮은 회사는 Q Capital Partners (`FDD18, 
+--- S26 (STELLA/C5-honesty)  스텔라 Deloitte Case DCF의 WACC 15.5% 및 성장률 2.5% 조건에 해당하는 지분가치 수치는 제공된 데이터
+--- S25 (STELLA/C5-honesty)  스텔라 상장사 비교(GPC) 방식에 따른 센트로이드의 EV/EBITDA 배수는 중앙값(Med.) 13.0x (`FDD6, pa
+--- S17 (STELLA/C3-structural)  스텔라 가치평가 방법별 지분가치 범위(최저~최고)를 분석한 결과, 최저~최고 폭이 가장 넓은 방법은 **GPC**입니다.  각
+--- S23 (STELLA/C3-structural)  스텔라 상장사 비교(GPC) 배수 통계에서 이상치로 제외된 회사가 있는지와 그 판단 기준에 대해서는 제공된 데이터에서 근거를 
+--- L02 (LIFE/C2-visualonly)  KDB생명보험의 FY2025 기말 CSM을 가장 크게 감소시킨 요인은 CSM 조정이며, 그 금액은 -2,854억원(`FDD8!
+--- S24 (STELLA/C3-structural)  스텔라 거래사례 비교(GTC) 데이터에서 EV/EBITDA 배수가 마이너스(음수)로 기록된 거래는 다음과 같습니다.  *   
+--- S29 (STELLA/C4-reconcile)  2024년 8월 기준 스텔라의 조직 부문별 인원과 총원을 보고서(FDD)와 임직원 수 엑셀 데이터를 비교한 결과, 총원 및 대
+--- S28 (STELLA/C2-visualonly)  스텔라 거래사례 비교(GTC)에서 거래금액(Deal Value)이 가장 큰 거래는 Woori Venture Partners C
+--- L01 (LIFE/C2-visualonly)  라이프 대상 생보사(KDB생명)의 13회차 유지율이 업계 평균을 처음으로 추월한 연도는 2022년입니다.  연도별 비교 결과는
+--- L03 (LIFE/C1-binding)  2023년 대비 2025년에 월납초회보험료 절대 증가폭이 가장 큰 상품군은 생존보험(연금형)입니다.  상품군별 증가폭 계산 결
+--- S30 (STELLA/C4-reconcile)  스텔라 보고서 본문에서 추정기간 동안 운용하는 총 펀드 수는 13개(`FDD16, page FDD16`)로 명시되어 있습니다.
+--- L06 (LIFE/C3-structural)  KDB생명보험의 CRO/선임계리사가 담당하는 위험관리 및 계리부문 산하의 직속 팀은 리스크관리팀(`FDD10, page FDD
+--- L05 (LIFE/C3-structural)  라이프 대상 생보사인 KDB생명의 2025년 업계 순위는 보장성보험 13위(`FDD3!FDD3`), 저축성보험 11위(`FDD
+--- L04 (LIFE/C2-visualonly)  2025년 기준 KDB생명보험의 보험 종목별 수입보험료 비중이 가장 큰 종목은 사망보험이며, 비중은 66.2%(`FDD6, p
+--- L08 (LIFE/C4-reconcile)  KDB생명보험의 외형과 수익성 방향은 서로 엇갈리고 있습니다. 외형 측면에서 저축성보험료는 FY23 1,266 (`FDD4!F
+--- L10 (LIFE/C1-binding)  라이프 대상 생보사 중 KDB생명보험의 2023년 기업대출 내 SOC 기타대출 금액은 4,328억원(`FDD9, page FD
+--- L07 (LIFE/C2-visualonly)  국내 생보사 거래사례 중 PBR 배수가 가장 높았던 딜은 2018년 9월(`FDD1, page FDD1`)의 오렌지라이프(`F
+--- L09 (LIFE/C5-honesty)  라이프 고객 DB-설계사 매칭 AI 모형의 프로세스에서 고객 DB가 최종 매칭 결과로 이어지는 과정 중 AI/예측 모형이 적용
+--- CS-01 (CAESAR/C3-structural)  카이사르 구조 내에서 설립 예정인 법인은 Celadon Core LLC이며, 2025년에 신설될 예정입니다 (`FDD2, pa
+--- L11 (LIFE/C3-structural)  라이프 대상 생보사(KDB생명보험)의 기업대출 내 부동산PF 잔액 합계는 2023년 8,701 (`FDD9!FDD9`), 20
+--- CS-03 (CAESAR/C3-structural)  카이사르 인수 후 최상위 지주 역할 법인은 CP Holdings I LLC이며, 해당 법인이 바로 아래 핵심 지주회사인 CP 
+--- CS-02 (CAESAR/C3-structural)  카이사르 구조에서 자체 은행계좌가 없어 관계사를 통해 자금을 정산하는 법인은 Celadon Partner SPV IX(`FDD
+--- L12 (LIFE/C1-binding)  2023년 라이프 대상 생보사(KDB생명보험)의 기업대출 담보유형 중 비중이 가장 큰 항목은 기타대출이며, 그 비중은 37.5
+--- S27 (STELLA/C1-binding)  스텔라 조직의 대표이사 직속 부문은 총 13개(`FDD10, page FDD10 — [LIFE] 회사 조직도`)이며, 구체적인
+--- CF-02 (CAESAR/C3-structural)  카이사르 가치평가 결과, 상장사 비교 및 거래사례 방식(Market Approach)이 DCF 방식보다 더 보수적으로(낮게) 
+--- CF-01 (CAESAR/C3-structural)  카이사르(Project CAESAR)의 DCF 기업가치 추정치는 경영진 가정과 자문사(Deloitte) 가정에 따라 다음과 같
+--- CP-02 (CAESAR/C1-binding)  카이사르 포트폴리오 중 이미 완전히 엑싯한 건이 존재합니다. 상세 내역은 다음과 같습니다.  *   **완전 엑싯**: Ati
+--- CP-01 (CAESAR/C3-structural)  카이사르 포트폴리오 중 투자원금 대비 회수배수(MOIC)가 가장 높은 건은 Atium이며, 수치는 12.2x(`FDD1, pa
+--- CK-02 (CAESAR/C3-structural)  카이사르 신규 펀드(Fund II)의 출시(결성) 시점은 경영진 가정(MGT Case)에서 FY25(`FDD6, page FD
+--- CK-01 (CAESAR/C3-structural)  카이사르 사업계획의 신규 펀드 규모 가정은 경영진안(Management Case)과 자문사안(Deloitte Case)이 서로
+--- CP-03 (CAESAR/C3-structural)  카이사르의 운용보수 수익은 자체 펀드(Fund 1)와 외부 LP(SPV) 기반 수익으로 나뉘며, FY24 기준 상세 내역은 다
+--- CE-02 (CAESAR/C1-binding)  카이사르의 2024년 기준 운용보수(Manager Fee) 지급 대상 SPV 수는 30개(`FDD5, page FDD5`)이며
+--- CH-01 (CAESAR/C5-honesty)  카이사르 자문사 DCF의 베타 산정을 위해 사용된 유사회사 Peer 그룹은 Alaris Equity Partners Incom
+--- CT-01 (CAESAR/C3-structural)  카이사르 사업계획상 펀드 수익 전망은 경영진안(MGT Case)이 자문사안(DTT Base Case)보다 더 높습니다.  경영
+--- CE-01 (CAESAR/C3-structural)  카이사르의 계약상 운용보수 요율은 2.0%(`FDD4, page FDD4 — [CAESAR] Operating Revenue`
+
+wrote data/eval/ab_semantic/base_r1/answers.json  (54 answers)
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_semantic/base_r1 cmds=['judge']
+judging 54 answers (rubric-based) ...
+# v0.2 비전-QA 평가 — wiki agent (dataset=v0.2)
+
+**전체: 54문항 · 평균 0.67**
+
+### 프로젝트(doc)별
+
+| 그룹 | n | mean |
+|---|---|---|
+| CAESAR | 14 | 0.39 |
+| LIFE | 12 | 0.79 |
+| STELLA | 28 | 0.75 |
+
+### 능력축(capability)별
+
+
+wrote data/eval/ab_semantic/base_r1/scores.json
+wrote data/eval/ab_semantic/base_r1/report.md

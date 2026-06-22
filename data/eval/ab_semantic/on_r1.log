@@ -1,0 +1,20 @@
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_semantic/on_r1 cmds=['eval']
+answering 54 questions · dataset=v0.2 (55 pages) · 8 workers
+--- S01 (STELLA/C3-structural)  네, 스텔라 지배구조상 모회사가 20% 미만의 소액 지분만 직접 보유하고 있는 펀드들이 존재합니다. 해당 펀드와 지분율은 다음
+--- S04 (STELLA/C3-structural)  스텔라 가치평가 결과, DCF(Deloitte Case)로 산출한 지분가치가 시장가치 접근법(GPC·GTC)으로 산출한 지분가
+--- S07 (STELLA/C3-structural)  스텔라 골프산업 거래배수(EV/EBITDA) 분포의 상·하단 격차가 가장 컸던 해는 2022년이며, 가장 좁았던 해는 2021
+--- S08 (STELLA/C3-structural)  스텔라 운용 펀드 중 설정일과 만기일 기준 존속기간이 가장 긴 펀드는 센트로이드제2호바이아웃입니다.  해당 펀드의 설정 연도는
+--- S06 (STELLA/C2-visualonly)  스텔라 Management Case와 Deloitte Case의 지분가치 차이에서 투자자산 회수가치(Exit Value) 조정
+--- S05 (STELLA/C1-binding)  FY24부터 FY29까지 매년 운용펀드 규모(AUM) 전망치는 Management Case가 Deloitte Case보다 더 
+--- S02 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)가 100% 지분을 보유하고 있는 자회사는 센트로이드매니지먼트이며(`FDD3, page 
+--- S09 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)가 운용 중인 펀드 중 현재 기준 수익률(IRR)이 마이너스인 펀드는 다음과 같습니다. 
+--- S12 (STELLA/C4-reconcile)  스텔라의 FY23 영업비용은 FDD 보고서상 7,278백만원(`FDD2, page FDD2`, `FDD13, page FDD1
+--- S03 (STELLA/C3-structural)  스텔라(솔리드이엔지) 최초 인수 당시의 투자구조 및 자금 흐름은 다음과 같습니다.  **1. 자금 흐름 및 경로** 자금은 `
+--- S14 (STELLA/C2-visualonly)  스텔라 출자자별 출자금액 현황에서 가장 많이 출자한 단일 LP는 새마을금고이며, 출자 금액은 5,900억원(`FDD11!FDD
+--- S15 (STELLA/C4-reconcile)  스텔라 센트로이드인베스트먼트파트너스의 FY23 영업수익은 FDD 보고서 기준으로 13,020백만원(`FDD2, page FDD
+--- S16 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역의 매도가능증권 Dec-23 잔액은 12,296(`FDD12, page FDD12`)입니다. 이는 BS
+--- S18 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역상 장기대여금의 Dec-23 잔액은 9,375(`FDD12, page FDD12 — [STELLA] A
+--- S19 (STELLA/C1-binding)  스텔라 Deloitte Case DCF 민감도 분석 결과, WACC 15.5% 및 영구성장률(PGR) 1.0% 조건에서의 지분
+--- S20 (STELLA/C3-structural)  스텔라 Deloitte Case DCF에서 영구성장률을 1.0%로 고정했을 때, WACC가 13.5%에서 17.5%로 상승하면
+--- S22 (STELLA/C1-binding)  스텔라 상장사 비교(GPC) 데이터에서 EV/EBITDA 배수가 가장 낮은 회사는 Q Capital Partners(`FDD1
+--- S10 (STELLA/C1-binding)  스텔라의 FY24~FY29 기간 동안 Operating Revenue(관리보수) 전망을 비교한 결과, 전 기간에 걸쳐 Mana

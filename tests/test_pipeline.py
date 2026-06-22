@@ -6,8 +6,8 @@ import operator
 import typing
 
 from apps.agent.core import _renumber
-from apps.agent.backends.wiki import build_app
-from apps.agent.backends.wiki.state import AgentState
+from apps.agent.cores.wiki import build_app
+from apps.agent.cores.wiki.state import AgentState
 
 
 # --- reducer channels: the parallel branches must MERGE, not overwrite -----------------
@@ -95,7 +95,7 @@ def _stub_ask(system, user, max_tokens):
     """Deterministic LLM stub so the async vs sync drive can be compared without the vLLM.
     Branches on which prompt is passed (planner/router/verifier). Synthesis no longer goes
     through ``_ask`` — it streams via ``chat``/``chat_stream``, stubbed separately below."""
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
 
     if system == nodes.PLANNER:
         return {"plan": [{"ask": "Q", "hint_terms": []}], "thought": "t"}, "raw"
@@ -110,8 +110,8 @@ def test_async_run_matches_sync_run(index, monkeypatch):
     import asyncio
 
     from apps.agent import core
-    from apps.agent.backends.wiki import engine
-    from apps.agent.backends.wiki import synthesize as synth_mod
+    from apps.agent.cores.wiki import engine
+    from apps.agent.cores.wiki import synthesize as synth_mod
 
     monkeypatch.setattr(engine, "_ask", _stub_ask)                       # planner/router/verifier
     monkeypatch.setattr(synth_mod, "chat", lambda *a, **k: "FIXED-ANSWER")  # buffered synthesize()
@@ -126,8 +126,8 @@ def test_async_stream_matches_sync_stream(index, monkeypatch):
     import asyncio
 
     from apps.agent import core
-    from apps.agent.backends.wiki import engine
-    from apps.agent.backends.wiki import synthesize as synth_mod
+    from apps.agent.cores.wiki import engine
+    from apps.agent.cores.wiki import synthesize as synth_mod
 
     monkeypatch.setattr(engine, "_ask", _stub_ask)
     # synthesize_stream() yields these fragments; the SSE path joins them into the answer
@@ -216,7 +216,7 @@ _ROUTE_IDX = {"pages": {"WACC 페이지": {}}, "alias_index": {}}
 
 
 def test_route_curated_hit_skips_router_llm(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
 
     monkeypatch.setattr(solve, "route_lookup", lambda hints, idx, wd: ["WACC 페이지"])
     monkeypatch.setattr(engine, "_ask",
@@ -227,7 +227,7 @@ def test_route_curated_hit_skips_router_llm(monkeypatch):
 
 
 def test_route_retry_bypasses_shortcut_and_calls_llm(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
 
     # even if the table would hit, a retry (tried non-empty) must diverge via the LLM router
     monkeypatch.setattr(solve, "route_lookup", lambda *a, **k: ["WACC 페이지"])
@@ -237,26 +237,67 @@ def test_route_retry_bypasses_shortcut_and_calls_llm(monkeypatch):
     assert picks == ["WACC 페이지"]  # came from the LLM path, not the shortcut
 
 
-_CX_IDX = {"pages": {"FDD1": {"source": "PDF", "derives_from": [{"page": "E1", "via": "x"}]},
-                     "E1": {}}, "alias_index": {}}
+_CX_IDX = {"pages": {"FDD1": {"source": "PDF",
+                              "derives_from": [{"page": "E1", "via": "metric:장기대여금"}]},
+                     "E1": {"title": "BS", "aliases": ["장기대여금"]}}, "alias_index": {}}
 
 
 def test_route_cross_ref_pairing_on(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
     from src.stella_kb import config
 
     monkeypatch.setattr(config, "agent_cross_ref_pairing", lambda: True)
     monkeypatch.setattr(solve, "route_lookup", lambda *a, **k: ["FDD1"])
     monkeypatch.setattr(engine, "_ask",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM called")))
-    sub = {"ask": "reconcile", "hint_terms": ["x"], "mode": "lookup"}
+    # hint term matches the link's via metric → the Excel source IS paired in
+    sub = {"ask": "reconcile", "hint_terms": ["장기대여금"], "mode": "lookup"}
     picks, _, thought = solve._route(sub, [], _CX_IDX, "INDEX", wiki_dir=None)
     assert "FDD1" in picks and "E1" in picks       # both the FDD page and its Excel source opened
     assert "cross-ref" in thought
 
 
+def test_route_cross_ref_pairing_gated_off_topic(monkeypatch):
+    from apps.agent.cores.wiki import engine, nodes, solve
+    from src.stella_kb import config
+
+    monkeypatch.setattr(config, "agent_cross_ref_pairing", lambda: True)
+    monkeypatch.setattr(solve, "route_lookup", lambda *a, **k: ["FDD1"])
+    monkeypatch.setattr(engine, "_ask",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM called")))
+    # hint term is unrelated to the link's via metric → the partner is gated OUT (no noise)
+    sub = {"ask": "골프 거래배수", "hint_terms": ["골프", "EV/EBITDA"], "mode": "lookup"}
+    picks, _, thought = solve._route(sub, [], _CX_IDX, "INDEX", wiki_dir=None)
+    assert picks == ["FDD1"]                        # off-topic Excel source NOT attached
+    assert "cross-ref" not in thought
+
+
+# --- PDF page-name determinism: a decks.yaml title pin freezes the routing/curation key --------
+
+def test_build_pages_title_pin_freezes_name(tmp_path, monkeypatch):
+    """A pinned page name wins over the (volatile) LLM structurer title, so a rebuild can't rename
+    a routed page; an unpinned ``페이지 N`` page still falls back to the LLM title (informative)."""
+    from src.stella_kb.wiki import pdf_pages
+
+    # 2nd kept section's breadcrumb fell back to "페이지 2" (would otherwise take the LLM title);
+    # FDD<n> numbers by kept-section position, so this is FDD2.
+    monkeypatch.setattr(pdf_pages, "pdf_to_sections",
+                        lambda p: [("Overview", "표\n\n| x | y |\n|---|---|\n| 1 | 2 |"),
+                                   ("페이지 2", "본문\n\n| a | b |\n|---|---|\n| 1 | 2 |")])
+    stub = lambda label, text: {"title": "Volatile LLM Title #4", "aliases": ["조직도"]}
+
+    pinned, _, _ = pdf_pages.build_pages("fake.pdf", tmp_path / "a", structurer=stub,
+                                         doc="STELLA", title_pins={2: "Corporate Structure"})
+    assert "FDD2 — [STELLA] Corporate Structure" in pinned          # pin wins, name frozen
+    assert not any("Volatile" in n for n in pinned)
+
+    unpinned, _, _ = pdf_pages.build_pages("fake.pdf", tmp_path / "b", structurer=stub,
+                                           doc="STELLA", title_pins={})
+    assert "FDD2 — [STELLA] Volatile LLM Title #4" in unpinned        # no pin → LLM-title fallback
+
+
 def test_route_no_cross_ref_pairing_when_off(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
     from src.stella_kb import config
 
     monkeypatch.setattr(config, "agent_cross_ref_pairing", lambda: False)
@@ -269,7 +310,7 @@ def test_route_no_cross_ref_pairing_when_off(monkeypatch):
 
 
 def test_route_miss_falls_back_to_llm(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
 
     monkeypatch.setattr(solve, "route_lookup", lambda *a, **k: [])  # no curated hit
     monkeypatch.setattr(engine, "_ask", lambda *a, **k: ({"pages": ["WACC 페이지"]}, "raw"))
@@ -284,7 +325,7 @@ _MULTI_IDX = {"pages": {f"P{i}": {} for i in range(6)}, "alias_index": {}}
 
 
 def test_router_opens_up_to_top_k_pages(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
     from src.stella_kb import config
 
     monkeypatch.setattr(config, "agent_router_top_k", lambda: 4)
@@ -298,7 +339,7 @@ def test_router_opens_up_to_top_k_pages(monkeypatch):
 
 
 def test_router_cap_also_bounds_curated_routes(monkeypatch):
-    from apps.agent.backends.wiki import engine, nodes, solve
+    from apps.agent.cores.wiki import engine, nodes, solve
     from src.stella_kb import config
 
     monkeypatch.setattr(config, "agent_router_top_k", lambda: 2)

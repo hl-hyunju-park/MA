@@ -7,7 +7,7 @@ wiki index over that test workbook (PDF intentionally excluded — see the READM
 design; T2/T3 cross-check items are expected to be hard without the PDF), runs the 20
 questions through the wiki agent against it, and LLM-judges each answer tier-aware.
 
-Everything is redirected to ``data/eval_stella/`` so the canonical ``data/wiki/`` (the
+Everything is redirected to ``knowledge/eval_stella/`` so the canonical ``knowledge/wiki/`` (the
 valuation-model wiki) is never touched.
 
     python -m eval.stella_crosscheck build   # 4 wiki stages over the test Excel
@@ -39,7 +39,7 @@ QUESTIONS = Path(os.environ.get("EVAL_QUESTIONS",
 
 # Output dir (answers/scores/report). Separate from the *target wiki* so we can evaluate a
 # prebuilt wiki (EVAL_WIKI) and write results elsewhere.
-EVAL_DIR = Path(os.environ.get("EVAL_OUT_DIR", str(ROOT / "data" / "eval" / "stella_crosscheck")))
+EVAL_DIR = Path(os.environ.get("EVAL_OUT_DIR", str(ROOT / "knowledge" / "eval" / "stella_crosscheck")))
 MD_DIR = EVAL_DIR / "md"
 PARSED_DIR = EVAL_DIR / "parsed"
 # The wiki the agent is evaluated against. Default: the self-built Excel-only wiki under
@@ -344,7 +344,7 @@ def run_eval(workers: int = 8, source: str | None = None) -> None:
     ``app``) or ``"auto"`` (the supervisor StateGraph — ``app`` is unused; its wiki node
     compiles its own from the same rebound eval index)."""
     from apps.agent import core
-    from apps.agent.backends.wiki import build_app, engine
+    from apps.agent.cores.wiki import build_app, engine
 
     source = source or EVAL_SOURCE
     index = _point_agent_at_eval_index()

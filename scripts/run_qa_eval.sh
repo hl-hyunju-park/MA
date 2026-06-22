@@ -5,7 +5,7 @@
 # against a prebuilt wiki (default the v0.2 dataset), then LLM-judges each against its rubric.
 #
 # Usage (from anywhere):
-#     scripts/run_qa_eval.sh                     # eval + judge -> data/eval_v0.2_qa
+#     scripts/run_qa_eval.sh                     # eval + judge -> knowledge/eval_v0.2_qa
 #     scripts/run_qa_eval.sh judge               # re-judge existing answers only
 #     EVAL_DATASET=default scripts/run_qa_eval.sh # score a different built dataset
 #
@@ -17,7 +17,7 @@ PY="${PY:-.venv/bin/python}"
 
 export EVAL_DATASET="${EVAL_DATASET:-v0.2}"
 export EVAL_QA="${EVAL_QA:-test_data/v0.2/ground_truth/qa.jsonl}"
-export EVAL_OUT_DIR="${EVAL_OUT_DIR:-data/eval/v0.2}"
+export EVAL_OUT_DIR="${EVAL_OUT_DIR:-knowledge/eval/v0.2}"
 CMDS="${*:-eval judge}"
 
 echo "==> dataset (target wiki): $EVAL_DATASET"

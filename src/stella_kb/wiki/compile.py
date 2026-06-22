@@ -15,8 +15,8 @@ Stage 3 of the vectorless / LLM-wiki pipeline. Hybrid by design (same split as
     facts table; it is told to cite cells and never invent a number. Skippable with
     ``--no-llm`` to inspect the deterministic scaffold first.
 
-Input  : data/parsed/<sheet>.json  (from parse_llm.py)  +  WORKBOOK  +  the DAG
-Output : data/wiki/pages/<sheet>.md
+Input  : knowledge/parsed/<sheet>.json  (from parse_llm.py)  +  WORKBOOK  +  the DAG
+Output : knowledge/wiki/pages/<sheet>.md
 
 Usage (from repo root, venv active):
     python -m src.stella_kb.wiki.compile "DCF 장표 #2_DTT"     # one page

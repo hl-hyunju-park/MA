@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from apps.agent.backends.wiki.nodes import parse_action
+from apps.agent.cores.wiki.nodes import parse_action
 from apps.agent.retrieval import (
     cross_ref_partners,
     extract_page_items,
@@ -86,13 +86,14 @@ def test_trace_unknown_start_is_empty():
 # --- against the real built index (skips if not generated) ----------------------------
 
 
-def test_trace_real_index_is_raw_only(index):
+def test_trace_real_index_is_raw_only(v01_index):
     """The provenance DAG is built from `_raw`, so a real trace stays within `_raw` sheets.
 
     (Tracing the carry → engine → DCF EV valuation chain is the *graph* paradigm's job — it
-    needs the full workbook the wiki deliberately excludes.)
+    needs the full workbook the wiki deliberately excludes.) Pinned to v0.1 (the Centroid model),
+    independent of the process-default dataset.
     """
-    chain = {c["sheet"]: c for c in trace_links(index, "제2호_거래내역", "down")}
+    chain = {c["sheet"]: c for c in trace_links(v01_index, "제2호_거래내역", "down")}
     assert chain["제2호_비용"]["has_page"]        # ledger → cost: both `_raw` pages, openable
     assert "성과보수, 배당금" not in chain         # carry sheet is out of the `_raw` wiki
 
@@ -154,7 +155,7 @@ def test_deterministic_retrieve_flag_defaults_off():
 
 # --- route_lookup: curated routes.yaml → pages (deterministic, no LLM) -----------------
 # The routes table is resolved by config.agent_routes_yaml; point it at a tmp file via the
-# MNA_AGENT_ROUTES env override so these stay decoupled from the data/<version>/ layout.
+# MNA_AGENT_ROUTES env override so these stay decoupled from the knowledge/<version>/ layout.
 
 _IDX = {"pages": {"FDD8 — [CAESAR] WACC": {}, "회사 조직도": {}, "엉뚱페이지": {}}}
 
@@ -187,15 +188,17 @@ def test_route_lookup_dedups_across_terms(tmp_path, monkeypatch):
 
 # --- every committed routes.yaml target must exist in its index (catches typos / the YAML
 #     '#'-comment footgun) — skips a dataset whose wiki isn't built in this checkout ----------
+# v0.1 is intentionally excluded: its routes.yaml is not maintained (the canonical Centroid model
+# is served via the graph paradigm; its wiki is Excel-only and its FDD routes are stale by design).
 
-@pytest.mark.parametrize("version", ["v0.1", "v0.2"])
+@pytest.mark.parametrize("version", ["v0.2"])
 def test_committed_routes_targets_exist(version):
     import json
 
     from src.stella_kb import ROOT
 
-    routes_path = ROOT / "data" / version / "routes.yaml"
-    index_path = ROOT / "data" / version / "wiki" / "index.json"
+    routes_path = ROOT / "knowledge" / version / "routes.yaml"
+    index_path = ROOT / "knowledge" / version / "wiki" / "index.json"
     if not routes_path.exists() or not index_path.exists():
         pytest.skip(f"{version}: routes or built index absent")
     import yaml
@@ -210,11 +213,11 @@ def test_committed_routes_targets_exist(version):
 # --- lookup / open_page ---------------------------------------------------------------
 
 
-def test_lookup_resolves_known_term(index):
+def test_lookup_resolves_known_term(v01_index):
     # assert on an EXACT-match alias (관리보수율) of the page, not a substring term against the
     # whole corpus — the bare "관리보수" ranks 제2호_관리보수 past the 12-row window once FDD pages
-    # join the alias index, which tests display truncation, not resolution.
-    out = lookup(index, "관리보수율")
+    # join the alias index, which tests display truncation, not resolution. Pinned to v0.1.
+    out = lookup(v01_index, "관리보수율")
     assert "제2호_관리보수" in out and "hit" in out
 
 
@@ -222,8 +225,8 @@ def test_lookup_miss_is_graceful(index):
     assert "no matching pages" in lookup(index, "절대없는용어xyz")
 
 
-def test_open_existing_page_has_cells():
-    out = open_page("DCF 장표 #1_MGT")
+def test_open_existing_page_has_cells(v01_wiki):
+    out = open_page("DCF 장표 #1_MGT", wiki_dir=v01_wiki)
     assert out.startswith("OPEN") and "## " in out
 
 
@@ -231,7 +234,62 @@ def test_open_missing_page_guides_back():
     assert "no such page" in open_page("Nonexistent Sheet 999")
 
 
-def test_open_page_trims_aliases_frontmatter():
+def test_open_page_trims_aliases_frontmatter(v01_wiki):
     # the aliases: line is dropped to save context, sheet/section kept
-    out = open_page("제2호_관리보수")
+    out = open_page("제2호_관리보수", wiki_dir=v01_wiki)
     assert "aliases:" not in out and "sheet:" in out
+
+
+# --- page_catalog + closed-set resolver (the words→page mapper) ------------------------
+
+_RESOLVER_IDX = {"pages": {
+    "제2호_관리보수": {"title": "제2호 관리보수", "aliases": ["관리보수율", "management fee"],
+                  "kind": "ledger", "group": "제2호", "period": "FY24", "unit": "원"},
+    "DCF 장표 #1_MGT": {"title": "DCF (MGT)", "aliases": ["equity value", "기업가치"],
+                       "kind": "exhibit", "case": "MGT"},
+}}
+
+
+def test_page_catalog_format_and_metadata():
+    from apps.agent.retrieval import page_catalog
+
+    cat = page_catalog(_RESOLVER_IDX)
+    lines = cat.splitlines()
+    # one line per page; name before ':' is the exact (whitelist) page name
+    assert {ln.split(":", 1)[0] for ln in lines} == set(_RESOLVER_IDX["pages"])
+    # aliases (KO+EN) and disambiguation metadata both ride the line
+    fee = next(ln for ln in lines if ln.startswith("제2호_관리보수:"))
+    assert "management fee" in fee and "관리보수율" in fee
+    assert "ledger" in fee and "제2호" in fee and "FY24" in fee
+    # case shows for the dual-case exhibit
+    assert "case MGT" in next(ln for ln in lines if ln.startswith("DCF 장표 #1_MGT:"))
+
+
+def test_page_catalog_caps_alias_tail():
+    from apps.agent.retrieval import page_catalog
+
+    idx = {"pages": {"P": {"title": "P", "aliases": [f"a{i}" for i in range(100)]}}}
+    line = page_catalog(idx, alias_cap=5)
+    assert "a4" in line and "a5" not in line  # only the first 5 aliases survive
+
+
+def test_resolve_pages_whitelist_guards_llm_output(monkeypatch):
+    from apps.agent.cores.wiki import engine, solve
+
+    # stub the LLM: return one real page, one hallucinated, one [[wikilink]]-wrapped real one
+    def fake_ask(system, user, max_tokens):
+        assert system is engine.RESOLVER and "카탈로그:" in user  # catalog handed to the model
+        return {"pages": ["제2호_관리보수", "made_up_page", "[[DCF 장표 #1_MGT]]"],
+                "thought": "t"}, "raw"
+
+    monkeypatch.setattr(engine, "_ask", fake_ask)
+    picks, thought = solve._resolve_pages({"ask": "관리보수와 기업가치"}, _RESOLVER_IDX, top_k=4)
+    # hallucination dropped; [[..]] form resolved; order + dedup preserved
+    assert picks == ["제2호_관리보수", "DCF 장표 #1_MGT"] and thought == "t"
+
+
+def test_resolve_pages_empty_on_no_hit(monkeypatch):
+    from apps.agent.cores.wiki import engine, solve
+
+    monkeypatch.setattr(engine, "_ask", lambda *a, **k: ({"pages": []}, "raw"))
+    assert solve._resolve_pages({"ask": "x"}, _RESOLVER_IDX, top_k=4) == ([], "")

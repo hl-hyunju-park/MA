@@ -7,7 +7,7 @@ the cited Korean answer plus the routing trace (which page it opened and why). T
 executor) and the blocking vLLM health probe is offloaded with ``to_thread``, so the event loop
 is never stalled and a streaming SSE connection isn't pinned to a threadpool thread.
 
-Run (from repo root, venv active; needs data/wiki/ and the local vLLM — see llm.py):
+Run (from repo root, venv active; needs knowledge/wiki/ and the local vLLM — see llm.py):
     .venv/bin/uvicorn apps.agent.api.server:app --host 0.0.0.0 --port 5001
     # interactive docs at http://localhost:5001/docs
 
@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.stella_kb.llm import BASE_URL, MODEL
 
-from .. import datasets
+from ..utils import datasets
 from ..core import aanswer, astream_run
 from .schema import AskResponse
 

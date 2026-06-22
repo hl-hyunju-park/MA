@@ -1,19 +1,21 @@
 """Render the Tier-1 semantic graph (:mod:`lift`) as a self-contained interactive HTML.
 
-No Python plotting deps — reads ``data/stella_semantic.json`` and emits one HTML file with
+No Python plotting deps — reads ``knowledge/stella_semantic.json`` and emits one HTML file with
 the graph data inlined and `vis-network` loaded from a CDN. Nodes are colored by type and
 each node type / edge type can be toggled, so the 694-node graph stays explorable.
 
 Output goes to ``frontend/web/graph.html`` so the running FastAPI server serves it at
 ``/ui/graph.html`` (it also works opened directly via file://, since the data is inlined).
 
-Two graphs can be rendered (same node-link template, different sources):
+Three graphs can be rendered (same node-link template, different sources):
   - ``wiki``    — :mod:`lift`'s wiki-grounded graph (``stella_semantic.json``) -> graph.html
   - ``curated`` — :mod:`semantic`'s DCF-anchor graph (``stella_graph.json``)   -> graph_curated.html
+  - ``pages``   — :mod:`semantic`'s page DAG (``stella_pages.json``)           -> graph_pages.html
 
 Usage (repo root, venv active; build the source JSON first):
     python -m src.stella_kb.graph.lift && python -m src.stella_kb.graph.viz          # wiki (default)
     python -m src.stella_kb.graph.semantic && python -m src.stella_kb.graph.viz curated
+    python -m src.stella_kb.graph.semantic && python -m src.stella_kb.graph.viz pages
     python -m src.stella_kb.graph.viz both
 """
 
@@ -30,11 +32,13 @@ VIEWS = {
              "Semantic Graph (wiki-grounded · lift)"),
     "curated": (DATA_DIR / "graph" / "stella_graph.json", ROOT / "frontend" / "web" / "graph_curated.html",
                 "DCF Anchor Graph (curated · semantic)"),
+    "pages": (DATA_DIR / "graph" / "stella_pages.json", ROOT / "frontend" / "web" / "graph_pages.html",
+              "Page DAG (sheets condensed · semantic)"),
 }
 
 # node type -> color; the structural types are muted, the metric grains pop
 COLORS = {
-    "Metric": "#5b8cff", "Concept": "#9b5bff", "Sheet": "#3ecf8e",
+    "Metric": "#5b8cff", "Concept": "#9b5bff", "Sheet": "#3ecf8e", "Page": "#3ecf8e",
     "Section": "#2bb39a", "Fund": "#e0a341", "Entity": "#ff6b6b", "Period": "#7a8290",
 }
 # Concept + Period make the graph hairy (star INSTANCE_OF / COVERS edges) — off by default
@@ -67,6 +71,8 @@ def to_vis(graph: dict) -> tuple[list, list]:
             tip += f"<br>cell: {n['sheet']}!{n['cell']}"
         if n.get("role"):
             tip += f"<br>role: {n['role']}"
+        if n.get("members") and len(n["members"]) > 1:  # condensed Page super-node
+            tip += f"<br>{len(n['members'])} sheets: {', '.join(n['members'])}"
         nodes.append({
             "id": node_id,
             "label": n.get("label", node_id),
@@ -199,7 +205,7 @@ if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else "wiki"
     keys = list(VIEWS) if arg == "both" else [arg]
     if any(k not in VIEWS for k in keys):
-        raise SystemExit(f"usage: viz [wiki|curated|both]  (got {arg!r})")
+        raise SystemExit(f"usage: viz [wiki|curated|pages|both]  (got {arg!r})")
     for k in keys:
         render_view(k)
     print("serve: files are under frontend/web/ -> open http://localhost:8000/ui/<name>")

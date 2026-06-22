@@ -10,7 +10,7 @@ rubric and scores 1.0 / 0.5 / 0.0.
 The agent runs against a **prebuilt wiki** selected by dataset id (default ``v0.2``) via the
 dataset-store API — no global rebinding, no rebuild here.
 
-    python -m eval.qa_eval                 # eval + judge the v0.2 wiki -> data/eval_v0.2_qa
+    python -m eval.qa_eval                 # eval + judge the v0.2 wiki -> knowledge/eval_v0.2_qa
     python -m eval.qa_eval eval            # run answers only
     python -m eval.qa_eval judge           # re-judge existing answers
     EVAL_DATASET=default python -m eval.qa_eval   # score a different built dataset
@@ -30,7 +30,7 @@ from src.stella_kb import config
 ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = Path(os.environ.get("EVAL_QA", str(ROOT / "test_data" / "v0.2" / "ground_truth" / "qa.jsonl")))
 DATASET = os.environ.get("EVAL_DATASET", "v0.2")  # which built wiki the agent reads
-EVAL_DIR = Path(os.environ.get("EVAL_OUT_DIR", str(ROOT / "data" / "eval" / "v0.2")))
+EVAL_DIR = Path(os.environ.get("EVAL_OUT_DIR", str(ROOT / "knowledge" / "eval" / "v0.2")))
 ANSWERS_JSON = EVAL_DIR / "answers.json"
 SCORES_JSON = EVAL_DIR / "scores.json"
 REPORT_MD = EVAL_DIR / "report.md"
@@ -75,8 +75,8 @@ def _answer_one(q: dict, app, store) -> dict:
 
 def run_eval(workers: int = 8) -> None:
     """Answer all questions concurrently against ``DATASET``'s prebuilt wiki (store-based)."""
-    from apps.agent import datasets
-    from apps.agent.backends.wiki import build_app, nodes
+    from apps.agent.utils import datasets
+    from apps.agent.cores.wiki import build_app, nodes
 
     store = datasets.get_store(DATASET)
     if not store.exists():

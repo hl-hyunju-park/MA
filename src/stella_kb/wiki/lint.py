@@ -41,7 +41,7 @@ Exit code is non-zero iff any *error*-severity finding exists, so CI can gate on
 
 Usage (from repo root, venv active):
     python -m src.stella_kb.wiki.lint                  # lint the default agent wiki
-    python -m src.stella_kb.wiki.lint data/v0.2/wiki   # lint a specific build
+    python -m src.stella_kb.wiki.lint knowledge/v0.2/wiki   # lint a specific build
     python -m src.stella_kb.wiki.lint --fix            # prune the prunable drift
     python -m src.stella_kb.wiki.lint --contradictions # also run the opt-in value-clash check
     python -m src.stella_kb.wiki.lint --json           # machine-readable report

@@ -10,10 +10,10 @@
 # T2/T3 cross-check items that were "hard without the PDF" become answerable.
 #
 # Usage (from anywhere):
-#     scripts/run_eval.sh                       # eval + judge the v0.2 wiki -> data/eval_v0.2
+#     scripts/run_eval.sh                       # eval + judge the v0.2 wiki -> knowledge/eval_v0.2
 #     scripts/run_eval.sh judge                 # re-judge existing answers only
-#     EVAL_WIKI=data/wiki scripts/run_eval.sh   # score a different prebuilt wiki
-#     EVAL_SOURCE=auto EVAL_OUT_DIR=data/eval/v0.2_auto scripts/run_eval.sh
+#     EVAL_WIKI=knowledge/v0.2/wiki scripts/run_eval.sh   # score a different prebuilt wiki
+#     EVAL_SOURCE=auto EVAL_OUT_DIR=knowledge/eval/v0.2_auto scripts/run_eval.sh
 #                                               # exercise the SUPERVISOR (route + compose/
 #                                               #   passthrough), not just the wiki backend —
 #                                               #   write elsewhere so you can A/B vs the wiki run
@@ -24,17 +24,17 @@ cd "$(dirname "$0")/.."                    # repo root, regardless of caller's c
 PY="${PY:-.venv/bin/python}"
 [ -x "$PY" ] || PY=python
 
-export EVAL_WIKI="${EVAL_WIKI:-data/v0.2/wiki}"
-export EVAL_OUT_DIR="${EVAL_OUT_DIR:-data/eval/v0.2_crosscheck}"
-export EVAL_QUESTIONS="${EVAL_QUESTIONS:-test_data/v0.1/rag_test_dataset/stella_case/ground_truth/cross_check_questions.jsonl}"
+export EVAL_WIKI="${EVAL_WIKI:-knowledge/v0.2/wiki}"
+export EVAL_OUT_DIR="${EVAL_OUT_DIR:-knowledge/eval/v0.2_crosscheck}"
+export EVAL_QUESTIONS="${EVAL_QUESTIONS:-test_data/v0.2/rag_test_dataset/stella_case/ground_truth/cross_check_questions.jsonl}"
 export EVAL_SOURCE="${EVAL_SOURCE:-wiki}"   # wiki = backend directly · auto = supervisor graph
 CMDS="${*:-eval judge}"
 
 echo "==> eval target wiki: $EVAL_WIKI"
 if [ ! -f "$EVAL_WIKI/index.json" ]; then
   echo "    !! $EVAL_WIKI/index.json missing — build the wiki first, e.g.:"
-  echo "       MNA_WIKI_WORKBOOK=data/v0.2/raw/input.xlsx MNA_WIKI_DATA=data/v0.2 \\"
-  echo "       MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh"
+  echo "       MNA_WIKI_WORKBOOK=knowledge/v0.2/raw/input.xlsx MNA_WIKI_DATA=knowledge/v0.2 \\"
+  echo "       MNA_WIKI_PDF_DIR=knowledge/v0.2/scripts/run_pipeline.sh"
   exit 1
 fi
 echo "    $(ls "$EVAL_WIKI"/pages/*.md 2>/dev/null | wc -l | tr -d ' ') pages"

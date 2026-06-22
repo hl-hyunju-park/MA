@@ -22,7 +22,7 @@ import networkx as nx
 import openpyxl
 
 from .extract import DependencyGraph, build_dependency_graph
-from .ids import nid, sheet_of
+from .ids import name_of, nid, sheet_of
 from .metrics import attach_metrics
 
 
@@ -162,6 +162,87 @@ def build_semantic_graph(path: str, dg: DependencyGraph | None = None,
     return g
 
 
+# --- page-grain DAG -------------------------------------------------------------------
+
+def _sheet_dep_graph(dg: DependencyGraph, classes: dict[str, SheetClass]) -> nx.DiGraph:
+    """Sheet→sheet weighted ``DEPENDS_ON`` graph (every classified sheet is a node).
+
+    Edge weight = how many cell dependencies cross the two sheets. Intra-sheet edges and
+    refs to divider/unknown sheets are dropped. This graph is **cyclic**: the Fin.Model
+    engine sheets reference each other (tax↔income↔interest↔debt), so 11 of them form one
+    strongly-connected cluster — see :func:`build_page_graph`, which condenses it.
+    """
+    s = nx.DiGraph()
+    for name, sc in classes.items():
+        s.add_node(name, section=sc.section, kind=sc.kind)
+    for prec, dep in dg.edges:
+        ps, ds = sheet_of(prec), sheet_of(dep)
+        if ps == ds or ps not in s or ds not in s:
+            continue
+        if s.has_edge(ps, ds):
+            s[ps][ds]["weight"] += 1
+        else:
+            s.add_edge(ps, ds, weight=1)
+    return s
+
+
+def build_page_graph(path: str, dg: DependencyGraph | None = None) -> nx.DiGraph:
+    """Collapse the cell DAG to a **page** DAG — one ``Page`` node per sheet, except the
+    mutually recursive sheets (each strongly-connected sheet cluster) condense into a
+    single ``Page`` so the result is a *true* DAG.
+
+    A plain sheet→sheet graph is **not** acyclic: Excel resolves the Fin.Model engine's
+    circularity (tax↔income↔interest↔debt↔cash flow) by iterative calc, and that shows up
+    as one 11-sheet cycle. At the page grain those sheets are one inseparable unit, so we
+    keep them as a single node (``members`` lists the sheets) and the graph stays acyclic.
+
+    Result today: ~49 pages / ~30 ``DEPENDS_ON`` edges, with the engine as one ``Page``
+    that everything upstream (Biz Plan, BSPL, EIU) feeds and everything downstream (the PPT
+    장표 exhibits) reads from.
+    """
+    if dg is None:
+        dg = build_dependency_graph(path)
+    classes = classify_sheets(path)
+    sheets = _sheet_dep_graph(dg, classes)
+
+    # condense each strongly-connected sheet cluster into one Page node
+    from collections import Counter
+
+    page_of: dict[str, str] = {}
+    used: set[str] = set()
+    g = nx.DiGraph()
+    for comp in nx.strongly_connected_components(sheets):
+        members = sorted(comp)
+        if len(members) == 1:
+            pid = nid("Page", members[0])
+        else:  # name the cluster after its dominant section, de-duped if several clusters
+            dominant = Counter(classes[m].section for m in members).most_common(1)[0][0]
+            pid = base = nid("Page", f"{dominant} engine")
+            k = 2
+            while pid in used:
+                pid, k = f"{base} #{k}", k + 1
+        used.add(pid)
+        sections = sorted({classes[m].section for m in members})
+        g.add_node(pid, type="Page", label=name_of(pid), members=members,
+                   n_sheets=len(members), kind="engine" if len(members) > 1 else classes[members[0]].kind,
+                   section=sections[0] if len(sections) == 1 else sections)
+        for m in members:
+            page_of[m] = pid
+
+    # lift sheet→sheet edges onto pages (sum weights, drop intra-page)
+    for u, v, d in sheets.edges(data=True):
+        pu, pv = page_of[u], page_of[v]
+        if pu == pv:
+            continue
+        if g.has_edge(pu, pv):
+            g[pu][pv]["weight"] += d["weight"]
+        else:
+            g.add_edge(pu, pv, type="DEPENDS_ON", weight=d["weight"])
+
+    assert nx.is_directed_acyclic_graph(g), "page graph must be acyclic after SCC condensation"
+    return g
+
+
 def export(g: nx.DiGraph, path: str) -> None:
     """Write the graph as node-link JSON (``.json``) or GraphML (``.graphml``).
 
@@ -208,3 +289,19 @@ if __name__ == "__main__":
     out = str(DATA_DIR / "graph" / "stella_graph.json")
     export(sg, out)
     print(f"\nexported -> {out}")
+
+    # page-grain DAG: sheets condensed so the engine cluster is one node (true DAG)
+    pg = build_page_graph(FULL_WORKBOOK, dg)
+    condensed = [n for n, d in pg.nodes(data=True) if d.get("n_sheets", 1) > 1]
+    isolated = sum(1 for n in pg if pg.degree(n) == 0)
+    print(f"\npage graph: {pg.number_of_nodes()} pages, {pg.number_of_edges()} edges "
+          f"(DAG={nx.is_directed_acyclic_graph(pg)}, {isolated} isolated)")
+    for n in condensed:
+        print(f"  condensed {n} <- {pg.nodes[n]['n_sheets']} sheets: {pg.nodes[n]['members']}")
+    print("top page->page dependencies:")
+    ptop = sorted((d["weight"], u, v) for u, v, d in pg.edges(data=True))
+    for w, u, v in ptop[-8:]:
+        print(f"  {u} -> {v}  (x{w})")
+    pout = str(DATA_DIR / "graph" / "stella_pages.json")
+    export(pg, pout)
+    print(f"exported -> {pout}")

@@ -2,7 +2,7 @@
 #
 # Launch the Project Stella wiki-agent HTTP API (FastAPI/uvicorn).
 #
-# Preflight: the wiki must be built (data/wiki/index.json) and the local vLLM must be up
+# Preflight: the wiki must be built (knowledge/wiki/index.json) and the local vLLM must be up
 # (the agent calls it on every /ask). Then serves apps.agent.api.server:app.
 #
 # Usage (from anywhere):
@@ -31,14 +31,15 @@ fi
                              || echo "    DART_MCP_TOKEN unset (dart backend will 503; wiki unaffected)"
 
 # Check every registered dataset wiki (config.yaml agent.datasets); we serve all of them
-# (v0.1 + v0.2). Parse the `datasets:` block: lines like "    v0.1: data/v0.1/wiki  # ...".
+# (v0.1 + v0.2). Parse the `datasets:` block: lines like "    v0.1: knowledge/v0.1/wiki  # ...".
 echo "==> checking wiki artifacts (config.yaml agent.datasets) ..."
+CONFIG_YAML="configs/config.yaml"; [ -f "$CONFIG_YAML" ] || CONFIG_YAML="config.yaml"
 WIKI_DIRS="$(awk '
   /^  datasets:/      {indata=1; next}
   indata && /^  [^ ]/ {indata=0}
   indata && /^    [^ ]/ {sub(/#.*/,""); sub(/^[^:]*:[[:space:]]*/,""); gsub(/[[:space:]]/,""); if($0) print}
-' config.yaml)"
-[ -n "$WIKI_DIRS" ] || WIKI_DIRS="data/v0.1/wiki"
+' "$CONFIG_YAML")"
+[ -n "$WIKI_DIRS" ] || WIKI_DIRS="knowledge/v0.1/wiki"
 missing=0
 for WIKI_DIR in $WIKI_DIRS; do
   if [ ! -f "$WIKI_DIR/index.json" ]; then

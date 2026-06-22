@@ -9,7 +9,7 @@
 # live in core.py, so get_graph() can't see them. This script therefore emits BOTH:
 #   1. Full architecture (route + both backends) — the source of truth in
 #      docs/agent_graph.md (mermaid + PNG). This is what you usually want.
-#   2. Compiled wiki sub-graph — rendered live from apps.agent.backends.wiki.build, so the wiki
+#   2. Compiled wiki sub-graph — rendered live from apps.agent.cores.wiki.build, so the wiki
 #      half is always verified against the committed code (drift check).
 #
 # Outputs:
@@ -53,13 +53,13 @@ print("\n--- Mermaid (FULL architecture: route + wiki + dart) ---")
 print(full_mermaid)
 
 # --- 2. Compiled wiki sub-graph: rendered live from code as a drift check on the wiki half.
-print("\n--- Compiled wiki sub-graph (live from apps.agent.backends.wiki.build) ---")
+print("\n--- Compiled wiki sub-graph (live from apps.agent.cores.wiki.build) ---")
 try:
-    from apps.agent.backends.wiki import build_app
+    from apps.agent.cores.wiki import build_app
     from apps.agent.retrieval import INDEX_JSON, load_index
 
     if not INDEX_JSON.exists():
-        print("   (skipped — data/wiki/index.json missing; build the wiki first: "
+        print("   (skipped — knowledge/wiki/index.json missing; build the wiki first: "
               "scripts/run_pipeline.sh)")
     else:
         g = build_app(load_index()).get_graph()

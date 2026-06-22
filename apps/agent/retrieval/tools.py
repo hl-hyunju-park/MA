@@ -1,6 +1,6 @@
 """Deterministic wiki access — the "code does all retrieval" half of the agent.
 
-No LLM here. These are the read tools the agent drives over ``data/wiki/`` (built by
+No LLM here. These are the read tools the agent drives over ``knowledge/wiki/`` (built by
 ``src/stella_kb``): ``lookup`` resolves a KO/EN term to candidate pages via the
 ``alias_index`` (words→node), and ``open_page`` reads a page's grounded facts table off
 disk. Every number a page surfaces already carries its ``Sheet!Cell``.
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from src.stella_kb.config import agent_wiki_dir
 
-WIKI_DIR = agent_wiki_dir()          # env MNA_AGENT_WIKI overrides (default data/wiki)
+WIKI_DIR = agent_wiki_dir()          # env MNA_AGENT_WIKI overrides (default knowledge/wiki)
 INDEX_MD = WIKI_DIR / "INDEX.md"
 INDEX_JSON = WIKI_DIR / "index.json"
 PAGES_DIR = WIKI_DIR / "pages"
@@ -63,14 +63,50 @@ def load_routes(wiki_dir: str | Path | None = None) -> dict:
     return _load_routes_cached(str(path), path.stat().st_mtime)
 
 
-def cross_ref_partners(index: dict, page: str, cap: int = 2) -> list[str]:
+def _term_hit(hint_terms: list[str], candidates: list[str]) -> bool:
+    """True if any hint term overlaps any candidate string (normalized, bidirectional substring,
+    min length 2 to avoid trivial 1-char hits). The relevance gate for cross-ref pairing."""
+    def norm(s: str) -> str:
+        return re.sub(r"\s+", "", str(s)).casefold()
+    hs = [h for h in (norm(h) for h in hint_terms) if len(h) >= 2]
+    cs = [c for c in (norm(c) for c in candidates) if len(c) >= 2]
+    return any((h in c or c in h) for h in hs for c in cs)
+
+
+def cross_ref_partners(index: dict, page: str, cap: int = 2,
+                       hint_terms: list[str] | None = None) -> list[str]:
     """Directed PDF↔Excel cross-ref partners of ``page`` — an FDD page's Excel sources
     (``derives_from``), or an Excel page's citing FDD pages (``cited_by``). Deterministic; empty
-    if none. Lets the router auto-pair both sides of a PDF×Excel cross-check question."""
-    e = index.get("pages", {}).get(page, {})
+    if none. Lets the router auto-pair both sides of a PDF×Excel cross-check question.
+
+    When ``hint_terms`` is given, a partner is kept only if it is **topically relevant** to the
+    sub-question: matched on the link's ``via`` metric/entity (for qualified ``derives_from``
+    links) or on the partner page's title+aliases (generic ``via:fund`` / ``cited_by`` links).
+    This drops the noise partners that loosely-cited Excel ledgers inject (a fund ledger is cited
+    by many FDD pages). With no hint terms, behaviour is the original cap-only attach."""
+    pages = index.get("pages", {})
+    e = pages.get(page, {})
     if e.get("source") == "PDF":
-        return [d["page"] if isinstance(d, dict) else d for d in (e.get("derives_from") or [])][:cap]
-    return list(e.get("cited_by") or [])[:cap]
+        links = [d if isinstance(d, dict) else {"page": d} for d in (e.get("derives_from") or [])]
+    else:
+        links = [{"page": p} for p in (e.get("cited_by") or [])]
+
+    out: list[str] = []
+    for link in links:
+        partner = link.get("page")
+        if not partner:
+            continue
+        if hint_terms:
+            via = str(link.get("via") or "")
+            if via.startswith(("metric:", "entity:")):
+                match_on = [via.split(":", 1)[1]]              # the linking metric/entity name
+            else:                                              # generic via:fund / cited_by
+                pe = pages.get(partner, {})
+                match_on = [pe.get("title") or "", *(pe.get("aliases") or [])]
+            if not _term_hit(hint_terms, match_on):
+                continue
+        out.append(partner)
+    return out[:cap]
 
 
 def route_lookup(hint_terms: list[str], index: dict,
@@ -96,6 +132,30 @@ def route_lookup(hint_terms: list[str], index: dict,
 
 def _norm(term: str) -> str:
     return re.sub(r"\s+", "", term).casefold()
+
+
+def page_catalog(index: dict, alias_cap: int = 40) -> str:
+    """Closed-set page catalog for the semantic resolver (the words→page mapper).
+
+    One line per page — ``name: title | aliases  [kind · group · case · period · unit]`` —
+    where the trailing metadata is exactly what ``lookup`` surfaces, so the resolver can
+    disambiguate *instances* (which fund's 관리보수, which period/case), not just concepts.
+    The graph engine's ``llm._catalog`` for metrics, mirrored for wiki pages: a compact closed
+    vocabulary handed to one whitelist-guarded LLM call. ~52 pages → ~6k tokens, so the whole
+    catalog fits one prompt. ``alias_cap`` bounds a pathological page's auto-generated alias
+    tail (recall lives in the first handful; the long tail is mostly cell-derived noise)."""
+    pages = index.get("pages", {})
+    lines = []
+    for name, e in pages.items():
+        aliases = [a for a in (e.get("aliases") or []) if a][:alias_cap]
+        meta = " · ".join(m for m in (
+            e.get("kind"), e.get("group"),
+            (f"case {e['case']}" if e.get("case") else None),
+            e.get("period"), e.get("unit"),
+        ) if m)
+        names = " | ".join([e.get("title") or name, *aliases])
+        lines.append(f"{name}: {names}" + (f"  [{meta}]" if meta else ""))
+    return "\n".join(lines)
 
 
 def lookup(index: dict, term: str, limit: int = 12) -> str:

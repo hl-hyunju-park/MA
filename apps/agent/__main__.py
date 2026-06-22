@@ -2,8 +2,8 @@
 
 Routes each question to the wiki (Centroid) or DART (public company) backend automatically;
 force one with ``--source wiki|dart|auto``. With no question, runs a few samples (one DART).
-Needs ``data/wiki/`` built and the local vLLM up (see ``src/stella_kb/llm.py``); DART questions
-also need the tool LLM (:8001) + the DART MCP server (see ``apps/agent/backends/dart.py``).
+Needs ``knowledge/wiki/`` built and the local vLLM up (see ``src/stella_kb/llm.py``); DART questions
+also need the tool LLM (:8001) + the DART MCP server (see ``apps/agent/cores/dart.py``).
 """
 
 from __future__ import annotations

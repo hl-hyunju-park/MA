@@ -16,7 +16,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 # Resolve the canonical wiki + workbook through config, so the suite follows the versioned
-# data layout (data/v0.1/...) instead of a hardcoded path.
+# data layout (knowledge/v0.1/...) instead of a hardcoded path.
 from src.stella_kb import FULL_WORKBOOK  # noqa: E402
 from src.stella_kb.config import agent_wiki_dir  # noqa: E402
 
@@ -40,15 +40,32 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(scope="session")
 def index() -> dict:
-    """The built wiki index (``data/wiki/index.json``); skip if it hasn't been generated."""
+    """The built wiki index (``knowledge/wiki/index.json``); skip if it hasn't been generated."""
     if not INDEX_JSON.exists():
-        pytest.skip("data/wiki/index.json not built (run src.stella_kb.wiki.index)")
+        pytest.skip("knowledge/wiki/index.json not built (run src.stella_kb.wiki.index)")
     return json.loads(INDEX_JSON.read_text(encoding="utf-8"))
+
+
+V01_WIKI = ROOT / "knowledge" / "v0.1" / "wiki"
+
+
+@pytest.fixture(scope="session")
+def v01_wiki() -> Path:
+    """The v0.1 (canonical Centroid model) wiki dir — for tests that assert on v0.1 content,
+    decoupled from whichever dataset is the process default (``agent.wiki_dir``). Skip if unbuilt."""
+    if not (V01_WIKI / "index.json").exists():
+        pytest.skip("v0.1 wiki not built")
+    return V01_WIKI
+
+
+@pytest.fixture(scope="session")
+def v01_index(v01_wiki) -> dict:
+    return json.loads((v01_wiki / "index.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="session")
 def full_workbook() -> str:
     """Path to the full 63-sheet workbook; skip if it isn't present."""
     if not FULL_WB.exists():
-        pytest.skip("full workbook not present under data/raw/")
+        pytest.skip("full workbook not present under knowledge/raw/")
     return str(FULL_WB)

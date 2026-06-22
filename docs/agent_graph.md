@@ -3,7 +3,7 @@
 The query agent (`apps/agent`) is **two backends behind a supervisor `StateGraph`**.
 `core.answer(source)` dispatches by `source`:
 
-- **`auto`** (default) — the **supervisor** (`apps/agent/backends/supervisor.py`): a LangGraph
+- **`auto`** (default) — the **supervisor** (`apps/agent/cores/supervisor.py`): a LangGraph
   `StateGraph` whose `supervisor` node routes to `wiki`/`dart` worker nodes via
   `Command(goto=…)`; the workers hand control back, and the supervisor calls the other (or
   **both** for a composite cross-source question) before finishing at a `compose` node. The
@@ -31,7 +31,7 @@ tokens (true time-to-first-token), saving the supervisor's two serial decision c
 path above.
 
 `get_graph()` only sees the *wiki* `StateGraph` — the supervisor tier and the DART branch live
-in `core.py`/`backends/supervisor.py`, outside the compiled graph — so the full architecture is drawn
+in `core.py`/`cores/supervisor.py`, outside the compiled graph — so the full architecture is drawn
 here, not by LangGraph. Interactive view: open [`agent_graph.html`](agent_graph.html) in a
 browser (drag nodes, Cytoscape.js).
 
@@ -48,7 +48,7 @@ flowchart TD;
   AN -- "wiki · explicit (eval path, bypass)" --> WIKI;
   AN -- "dart · explicit (bypass)" --> DART;
 
-  subgraph SUP["supervisor — StateGraph, Command(goto) routing (backends/supervisor.py)"];
+  subgraph SUP["supervisor — StateGraph, Command(goto) routing (cores/supervisor.py)"];
     direction TB;
     SA["🧭 supervisor node<br/><i>JSON decision (stdlib chat): next ∈ wiki|dart|FINISH</i>"];
     TW["➡ Command(goto=&quot;wiki&quot;)<br/><i>→ core.arun(next_query, store)</i>"];
@@ -62,7 +62,7 @@ flowchart TD;
   TW --> WIKI;
   TD --> DART;
 
-  subgraph WIKI["wiki backend — LangGraph StateGraph (backends/wiki/build.py)"];
+  subgraph WIKI["wiki backend — LangGraph StateGraph (cores/wiki/build.py)"];
     direction TB;
     P["🧭 planner<br/><i>question → ordered sub-questions</i>"];
     subgraph SB["solve branch ×N (parallel, ≤4 concurrent)"];
@@ -76,7 +76,7 @@ flowchart TD;
     AU --> SY["📝 synthesize<br/><i>runs AFTER the graph → streamable</i>"];
   end;
 
-  subgraph DART["dart backend — native tool-calling (backends/dart.py)"];
+  subgraph DART["dart backend — native tool-calling (cores/dart.py)"];
     direction TB;
     DA["🤖 create_agent loop<br/><i>tool-LLM :8001 picks a DART tool + args</i>"];
     DT[("DART MCP tools")];

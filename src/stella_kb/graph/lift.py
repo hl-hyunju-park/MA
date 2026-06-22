@@ -2,7 +2,7 @@
 
 The cell DAG from :mod:`extract` is the substrate — 4k formula cells, too fine to reason
 over. This module builds the graph an analyst actually queries (~hundreds of nodes) from
-``data/parsed/*.json`` (the grounded line-items the wiki pipeline already produced), and
+``knowledge/parsed/*.json`` (the grounded line-items the wiki pipeline already produced), and
 collapses the cell→cell dependency edges *up* to metric→metric by following each
 line-item's ``value_row`` anchor.
 
@@ -16,7 +16,7 @@ Edges: ``DEFINED_IN`` (Metric→Sheet) · ``PART_OF`` (Sheet→Section) · ``BEL
 (Metric→Fund/Entity) · ``COVERS`` (Sheet→Period) · ``INSTANCE_OF`` (Metric→Concept) ·
 ``DEPENDS_ON`` (Metric→Metric, collapsed from the cell DAG).
 
-Usage (repo root, venv active; needs data/parsed/ + the workbook):
+Usage (repo root, venv active; needs knowledge/parsed/ + the workbook):
     python -m src.stella_kb.graph.lift            # build, report counts, export
 """
 

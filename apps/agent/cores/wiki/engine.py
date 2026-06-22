@@ -23,6 +23,7 @@ from src.stella_kb.llm import chat
 from ...prompts import load as load_prompt
 
 PLANNER = load_prompt("planner")
+RESOLVER = load_prompt("resolve_pages")  # closed-set words→page resolver (the graph's resolve_metrics trick)
 ROUTER = load_prompt("router")
 RETRIEVER = load_prompt("retriever")
 VERIFIER = load_prompt("verifier")
@@ -73,17 +74,20 @@ def parse_action(raw: str) -> dict | None:
         return None
 
 
-def _ask(system: str, user: str, max_tokens: int) -> tuple[dict | None, str]:
+def _ask(system: str, user: str, max_tokens: int, timeout: float = 120.0) -> tuple[dict | None, str]:
     """One-shot LLM call: system + user → (parsed JSON action, raw text).
 
     Acquires ``_LLM_SEM`` so concurrent branches/pages never exceed the request cap — vLLM
     continuous-batches whatever does land at once, which is where the speed-up comes from.
+    ``timeout`` is per-call: a big-``max_tokens`` extraction (full-row + narrative) can run long
+    on a loaded vLLM, so its caller raises this above the 120s default to avoid a socket timeout
+    truncating the round.
     """
     with _LLM_SEM:
         raw = chat(
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             max_tokens=max_tokens,
-            timeout=120.0,
+            timeout=timeout,
         )
     return parse_action(raw), raw
 

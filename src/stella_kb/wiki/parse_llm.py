@@ -15,12 +15,12 @@ The contract follows CLAUDE.md's rules for LLM use:
     cell the model cites; an axis cell must actually hold a year. Ungrounded claims are
     dropped and recorded, never trusted.
 
-Output per sheet -> ``data/parsed/<sheet>.json``:
+Output per sheet -> ``knowledge/parsed/<sheet>.json``:
     {meta:{title,unit,case}, year_axis:{row,columns:{COL:year}}, line_items:[...],
      grounding:{...}}
 
 Usage (from repo root, venv active; needs the local vLLM up — see llm.py):
-    python -m src.stella_kb.wiki.dump_md --all      # produce data/md/ first
+    python -m src.stella_kb.wiki.dump_md --all      # produce knowledge/md/ first
     python -m src.stella_kb.wiki.parse_llm "DCF"    # parse one sheet
     python -m src.stella_kb.wiki.parse_llm --all    # parse every dumped sheet
 """

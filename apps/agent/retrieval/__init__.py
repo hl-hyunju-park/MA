@@ -1,4 +1,4 @@
-"""Wiki retrieval — deterministic access to the built wiki (``data/wiki/``). No LLM here."""
+"""Wiki retrieval — deterministic access to the built wiki (``knowledge/wiki/``). No LLM here."""
 
 from .tools import (
     INDEX_JSON,
@@ -12,6 +12,7 @@ from .tools import (
     load_routes,
     lookup,
     open_page,
+    page_catalog,
     persist_answer,
     query_ledger,
     route_lookup,
@@ -22,5 +23,5 @@ __all__ = [
     "WIKI_DIR", "INDEX_MD", "INDEX_JSON", "PAGES_DIR", "LEDGERS_DIR",
     "load_index", "lookup", "open_page", "trace_links", "query_ledger",
     "load_routes", "route_lookup", "extract_page_items", "persist_answer",
-    "cross_ref_partners",
+    "cross_ref_partners", "page_catalog",
 ]

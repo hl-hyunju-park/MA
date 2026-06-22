@@ -11,7 +11,7 @@ from pathlib import Path
 
 # repo root is two levels up from this file: src/stella_kb/__init__.py -> MA/
 ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = ROOT / "data"
+DATA_DIR = ROOT / "knowledge"
 # The raw source workbook (inputs/ledgers/statements/exhibits + macro); the computed
 # Fin.Model engine sheets (DCF, AUM Projection, ...) are not present in this file.
 # This is the canonical source for the **wiki** paradigm.

@@ -49,7 +49,7 @@ planner → (fan-out) solve×N → auditor → synthesizer
 ## 레이아웃
 
 ```
-data/                 # 버전별 빌드 산출물 (gitignore). 각 버전은 data/<version>/ 아래 자기완결
+knowledge/            # 버전별 빌드 산출물 (gitignore). 각 버전은 knowledge/<version>/ 아래 자기완결
   v0.1/  { raw md parsed wiki }   # 정본 63시트 센트로이드 모델 — 기본(default) 데이터셋
   v0.2/  { raw md parsed wiki }   # 멀티덱 비전 테스트셋: 센트로이드 원장 + CAESAR/LIFE/STELLA FDD 덱
   eval/  graph/  logs/            # 평가 출력 · 그래프 산출물 · 로그
@@ -92,17 +92,17 @@ pip install -r requirements.txt
 # 그래프 패러다임
 python -m src.stella_kb.graph.extract     # 수식 → 약 13.7k 셀, 약 74k DEPENDS_ON 엣지
 python -m src.stella_kb.graph.metrics     # 큐레이션 cell→Metric 앵커 → 102 metric, 14 period
-python -m src.stella_kb.graph.semantic    # 전체 의미 그래프 → data/graph/stella_graph.json
+python -m src.stella_kb.graph.semantic    # 전체 의미 그래프 → knowledge/graph/stella_graph.json
 python -m src.stella_kb.graph.query       # 질의: resolve → traverse → 인용 답변
 
-# 위키 패러다임 — 기본은 data/v0.1/ 에 빌드. 새 버전은 env로 디렉터리만 지정(코드 수정 불필요):
-scripts/run_pipeline.sh                                   # 정본(v0.1) 빌드 → data/v0.1/wiki/
-MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=data/v0.2 \
-  MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh # 새 버전 빌드 → data/v0.2/wiki/
+# 위키 패러다임 — 기본은 knowledge/v0.1/ 에 빌드. 새 버전은 env로 디렉터리만 지정(코드 수정 불필요):
+scripts/run_pipeline.sh                                   # 정본(v0.1) 빌드 → knowledge/v0.1/wiki/
+MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 \
+  MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh # 새 버전 빌드 → knowledge/v0.2/wiki/
 # 빌드 후 config.yaml 의 agent.datasets 에 한 줄 등록하면 API/UI에서 선택 가능.
 ```
 
-(`data/`의 빌드 산출물은 재생성 가능하며 gitignore 대상 — `src/`만 커밋, `data/`는 커밋 금지.)
+(`knowledge/`의 빌드 산출물은 재생성 가능하며 gitignore 대상 — `src/`만 커밋, `knowledge/`는 커밋 금지.)
 
 ### 데이터셋(버전) 선택
 
@@ -133,11 +133,11 @@ cd frontend && npm install && \
 
 ## 평가
 
-`test_data/` 아래 두 정답셋을 공유 vLLM으로 채점하고 결과는 `data/eval/`에 씁니다.
+`test_data/` 아래 두 정답셋을 공유 vLLM으로 채점하고 결과는 `knowledge/eval/`에 씁니다.
 
 ```bash
 scripts/run_qa_eval.sh                      # v0.2 비전-QA 54문항(덱 차트/구조도/매트릭스), rubric 채점
-                                            #   → data/eval/v0.2 (doc·capability C1~C5·visual_type 분해)
+                                            #   → knowledge/eval/v0.2 (doc·capability C1~C5·visual_type 분해)
 scripts/run_eval.sh                         # v0.1 3-tier PDF×Excel 교차검증 20문항 (지정 위키 대상)
 .venv-ragas/bin/python -m eval.ragas_eval   # RAGAS: grounded_faithfulness, answer_correctness, …
 ```
@@ -161,9 +161,9 @@ pytest --run-llm       # 라이브 vLLM end-to-end 스모크 테스트까지 실
 
 최신순. 전체 이력은 `git log` 참고.
 
-- **데이터 버전 관리 + `data/` 재구성.** 각 코퍼스를 `data/<version>/`(raw/md/parsed/wiki)로
-  자기완결화. 정본 = `data/v0.1`, 신규 멀티덱 테스트셋 = `data/v0.2`. 평가 출력은 `data/eval/`,
-  그래프 산출물은 `data/graph/`, 로그는 `data/logs/`. 모든 경로는 `config.py` 접근자로 해석
+- **데이터 버전 관리 + `knowledge/` 재구성.** 각 코퍼스를 `knowledge/<version>/`(raw/md/parsed/wiki)로
+  자기완결화. 정본 = `knowledge/v0.1`, 신규 멀티덱 테스트셋 = `knowledge/v0.2`. 평가 출력은 `knowledge/eval/`,
+  그래프 산출물은 `knowledge/graph/`, 로그는 `knowledge/logs/`. 모든 경로는 `config.py` 접근자로 해석
   (하드코딩 제거) — 빌드/서빙/평가는 env로 디렉터리만 지정.
 - **데이터셋(버전) API + 프런트 선택기.** `apps/agent/datasets.py` 레지스트리(`config.yaml`
   `agent.datasets`) + 캐시 `WikiStore`. `/ask`·`/ask/stream`에 `dataset` 파라미터(둘 다 GET+Query;
@@ -209,4 +209,4 @@ pytest --run-llm       # 라이브 vLLM end-to-end 스모크 테스트까지 실
   DCI-Agent-Lite(질의시 search→inspect→verify 루프), PageIndex(vectorless 트리 라우팅).
 - **캐시값 주의**: openpyxl은 재계산하지 않으며, 엑셀이 재계산하지 않은 셀은 `None`으로 읽힘.
   최신 숫자는 Excel/LibreOffice에서 재계산 후 추출.
-- 기밀 입력(`data/`의 워크북, `test_data/`의 FDD)은 **gitignore 대상**이며 절대 커밋 금지.
+- 기밀 입력(`knowledge/`의 워크북, `test_data/`의 FDD)은 **gitignore 대상**이며 절대 커밋 금지.

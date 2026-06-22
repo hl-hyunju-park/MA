@@ -251,7 +251,8 @@ def _page_md(name: str, tag: str, label: str, s: dict, xref: list[str] | None = 
 
 
 def build_pages(
-    pdf_path: str, pages_dir: Path, structurer=structure_section, index: dict | None = None, doc: str | None = None
+    pdf_path: str, pages_dir: Path, structurer=structure_section, index: dict | None = None,
+    doc: str | None = None, title_pins: dict | None = None,
 ) -> tuple[dict, dict, dict]:
     """Build PDF wiki pages and the index pieces to merge into an existing wiki index.
 
@@ -290,11 +291,18 @@ def build_pages(
         # GPC peer table) used to vanish here; now they're kept via their raw tables/terms.
         if not figs and not page_aliases and not raw_tables:
             continue
-        # When the breadcrumb regex missed and the label fell back to "페이지 N", use the LLM's
-        # structured title instead — an uninformative "페이지 N" page name/ToC entry is unroutable
-        # (the router can't tell it's the Corporate Structure page from "페이지 2").
+        # Page NAME precedence — the routing/curation KEY must stay DETERMINISTIC across rebuilds:
+        #   curated per-page pin (decks.yaml `pages:`) > breadcrumb label > LLM structured title.
+        # The LLM title is content-derived, so any vision/structurer prompt change re-rolls it and
+        # *renames the page* — which silently breaks committed routes.yaml / xref targets. Pinning a
+        # routed page in decks.yaml freezes its name so build-side iteration can't orphan its route.
+        # (An uninformative "페이지 N" breadcrumb is unroutable, so it still falls back to the LLM
+        # title when no pin is given.)
         s_title = s.get("title")
-        if re.fullmatch(r"페이지 \d+", label) and s_title:
+        pin = (title_pins or {}).get(i) or (title_pins or {}).get(str(i))
+        if pin:
+            label = re.sub(r"\s+", " ", str(pin)).strip()
+        elif re.fullmatch(r"페이지 \d+", label) and s_title:
             label = re.sub(r"\s+", " ", s_title).strip()
         tag = f"FDD{i}"
         # A label can carry '/' (e.g. a "(2/2)" continuation marker); '/' in a page name
@@ -441,7 +449,7 @@ def merge_into_index(index: dict, entries: dict, alias_add: dict, tree_add: dict
 
 
 if __name__ == "__main__":
-    # Stage 5 of run_pipeline.sh: ingest every PDF report under data/raw/ and merge its pages
+    # Stage 5 of run_pipeline.sh: ingest every PDF report under knowledge/raw/ and merge its pages
     # into the index the Excel pipeline already built (stage 4). Self-skips cleanly when there
     # is no PDF, so the stage is always safe to run. Mirrors eval.stella_crosscheck.build_pdf.
     import json
@@ -475,7 +483,17 @@ if __name__ == "__main__":
         doc = re.sub(r"[_-]?pages$", "", Path(pdf).stem, flags=re.I)
         name_doc = doc if multi else None      # namespace page NAMES only in the multi-deck case
         print(f"pdf_pages: ingest {pdf}  (doc={doc})")
-        entries, alias_add, tree_add = build_pages(pdf, PAGES_DIR, index=index, doc=name_doc)
+        # Per-page title pins from decks.yaml (`pages: {<FDD#>: "<name>"}`) freeze routed pages'
+        # names so a rebuild can't rename them out from under routes.yaml / xrefs. Keys are FDD
+        # section numbers; non-numeric keys are ignored.
+        title_pins: dict = {}
+        for k, v in ((decks.get(doc) or {}).get("pages") or {}).items():
+            try:
+                title_pins[int(str(k).lstrip("FDDfdd "))] = v
+            except (TypeError, ValueError):
+                continue
+        entries, alias_add, tree_add = build_pages(pdf, PAGES_DIR, index=index, doc=name_doc,
+                                                   title_pins=title_pins)
         merge_into_index(index, entries, alias_add, tree_add)
         # two-layer node: deck description (curated > LLM > default) + ToC
         documents[doc] = build_document(doc, entries, curated=decks.get(doc))

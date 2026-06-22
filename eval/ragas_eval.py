@@ -1,7 +1,7 @@
 """RAGAS scoring of the stella cross-check answers — async, task-tuned DiscreteMetrics.
 
 The retrieval/grounding axis the tier-aware judge (``stella_crosscheck.judge``) doesn't
-measure. Consumes ``data/eval_stella/answers.json`` (which records ``retrieved_contexts`` —
+measure. Consumes ``knowledge/eval_stella/answers.json`` (which records ``retrieved_contexts`` —
 the wiki agent's evidence cells) and scores each answer with the local gemma vLLM.
 
 Why custom DiscreteMetrics instead of stock RAGAS metrics: this agent does **deterministic
@@ -41,7 +41,7 @@ from pathlib import Path
 from src.stella_kb import config
 
 ROOT = Path(__file__).resolve().parents[1]
-EVAL_DIR = ROOT / "data" / "eval_stella"
+EVAL_DIR = ROOT / "knowledge" / "eval_stella"
 ANSWERS_JSON = EVAL_DIR / "answers.json"
 RAGAS_CSV = EVAL_DIR / "ragas_scores.csv"
 RAGAS_MD = EVAL_DIR / "ragas_report.md"

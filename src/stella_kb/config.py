@@ -8,7 +8,7 @@ per-run overrides keep working unchanged. Secrets (``DART_MCP_TOKEN``, ``DART_AP
 Imported from anywhere in the repo:
     from src.stella_kb.config import llm_url, llm_model        # apps/agent, eval/
     from ..config import parse_concurrency                     # within src/stella_kb/*
-Loads ``config.yaml`` at repo root (override path with ``STELLA_CONFIG``). PyYAML + stdlib
+Loads ``configs/config.yaml`` (legacy: repo-root ``config.yaml``; override with ``STELLA_CONFIG``). PyYAML + stdlib
 only, so it imports cleanly in the lean ``.venv-ragas`` too.
 """
 from __future__ import annotations
@@ -22,7 +22,17 @@ import yaml
 
 from . import ROOT, WORKBOOK
 
-_CONFIG_PATH = Path(os.environ.get("STELLA_CONFIG", str(ROOT / "config.yaml")))
+def _resolve_config_path() -> Path:
+    """``STELLA_CONFIG`` env wins; else ``configs/config.yaml`` (current layout), falling back to
+    the legacy repo-root ``config.yaml`` so either layout / a fresh checkout still loads."""
+    env = os.environ.get("STELLA_CONFIG")
+    if env:
+        return Path(env)
+    primary = ROOT / "configs" / "config.yaml"
+    return primary if primary.exists() else ROOT / "config.yaml"
+
+
+_CONFIG_PATH = _resolve_config_path()
 
 
 @lru_cache(maxsize=1)
@@ -98,6 +108,19 @@ def agent_cross_ref_pairing() -> bool:
                default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
 
 
+def agent_semantic_resolve() -> bool:
+    """When true, the first routing attempt uses the **closed-set semantic resolver** — one
+    whitelist-guarded LLM call over the full page catalog (title + aliases + metadata,
+    ``retrieval.tools.page_catalog``) that maps the sub-question straight to page(s), the graph
+    engine's ``resolve_metrics`` trick. It replaces the substring ``lookup``→router path on try-1
+    (latency-neutral: one call, same as the router) and bridges KO/EN vocab the substring index
+    misses (관리수수료 ↔ "management fee"). On a miss it falls through to the LLM router; retries
+    always use the router. Default **off** — query-affecting, so enable for the A/B
+    (env ``MNA_SEMANTIC_RESOLVE``) before turning it on by default."""
+    return get("agent", "semantic_resolve", env="MNA_SEMANTIC_RESOLVE",
+               default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
+
+
 def agent_deterministic_retrieve() -> bool:
     """When true, the retriever first tries a **deterministic** parse of a page's ``value [cell]``
     table (``retrieval.tools.extract_page_items``) and, on a hit, skips that page's LLM extraction — a
@@ -161,11 +184,11 @@ def dart_mcp_url() -> str:
     return get("dart", "mcp_url", env="DART_MCP_URL", default="http://127.0.0.1:8002/sse")
 
 
-# --- wiki build I/O paths (env-overridable; defaults preserve the canonical data/ tree) -----
+# --- wiki build I/O paths (env-overridable; defaults preserve the canonical knowledge/ tree) -----
 # The whole wiki pipeline (dump_md -> parse_llm -> compile -> index -> pdf_pages) reads its
 # input workbook/PDFs and writes its md/parsed/wiki artifacts through these accessors, so a
 # second corpus can be built into an isolated tree without touching the canonical build:
-#     MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=data/v0.2 MNA_WIKI_PDF_DIR=test_data/v0.2 \
+#     MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 MNA_WIKI_PDF_DIR=test_data/v0.2 \
 #         python -m src.stella_kb.wiki.dump_md --all   (and the rest of the stages)
 # Defaults reproduce the original hardcoded paths exactly, so existing runs/tests are unchanged.
 
@@ -191,8 +214,8 @@ def cross_ref_llm_judge() -> bool:
 
 def wiki_data_dir() -> Path:
     """Base dir holding the wiki build artifacts (``md/`` ``parsed/`` ``wiki/``). Default is the
-    canonical build under ``data/v0.1`` (each corpus version lives in its own ``data/<v>``)."""
-    return Path(get("wiki", "data_dir", env="MNA_WIKI_DATA", default="data/v0.1"))
+    canonical build under ``knowledge/v0.1`` (each corpus version lives in its own ``knowledge/<v>``)."""
+    return Path(get("wiki", "data_dir", env="MNA_WIKI_DATA", default="knowledge/v0.1"))
 
 
 def wiki_pdf_dir() -> Path:
@@ -203,16 +226,16 @@ def wiki_pdf_dir() -> Path:
 
 def curation_dir() -> Path:
     """Repo-tracked root for hand-authored, **version-controlled** curation, laid out per dataset
-    version: ``data/<version>/{decks,routes}.yaml`` — co-located with each version's build. These
-    two yamls stay committed via a ``.gitignore`` exception even though the rest of ``data/`` is
+    version: ``knowledge/<version>/{decks,routes}.yaml`` — co-located with each version's build. These
+    two yamls stay committed via a ``.gitignore`` exception even though the rest of ``knowledge/`` is
     ignored (regenerable), so a fresh checkout still has the curation. Override the root with env
     ``MNA_CURATION_DIR`` / yaml ``curation.dir``."""
-    return Path(get("curation", "dir", env="MNA_CURATION_DIR", default=str(ROOT / "data")))
+    return Path(get("curation", "dir", env="MNA_CURATION_DIR", default=str(ROOT / "knowledge")))
 
 
 def _version_token(d: Path | str) -> str:
-    """Dataset-version token from a data/wiki dir, per the ``data/<version>/wiki`` convention:
-    ``data/v0.2`` → ``v0.2`` and ``data/v0.2/wiki`` → ``v0.2``. Names the ``data/<version>/``
+    """Dataset-version token from a knowledge/wiki dir, per the ``knowledge/<version>/wiki`` convention:
+    ``knowledge/v0.2`` → ``v0.2`` and ``knowledge/v0.2/wiki`` → ``v0.2``. Names the ``knowledge/<version>/``
     subdir that pairs with the build/dataset."""
     p = Path(d)
     return p.parent.name if p.name == "wiki" else p.name
@@ -222,7 +245,7 @@ def wiki_decks_yaml() -> Path:
     """Curated **first-layer** deck index the PDF build reads to override the LLM-synthesized
     document node (per-deck ``title``/``description``). A hand-authored, git-committed input —
     precedence is curated > LLM > default — so the upper layer is deterministic and auditable
-    (OpenKB curated-whitelist pattern). Default ``data/<version>/decks.yaml`` (version from
+    (OpenKB curated-whitelist pattern). Default ``knowledge/<version>/decks.yaml`` (version from
     the build's ``MNA_WIKI_DATA`` dir); explicit file via env ``MNA_WIKI_DECKS``; absent = pure
     LLM."""
     return Path(get("wiki", "decks", env="MNA_WIKI_DECKS",
@@ -250,15 +273,15 @@ def wiki_index_md() -> Path:
 
 
 def agent_wiki_dir() -> Path:
-    """Wiki the query agent reads (index.json / pages / ledgers). Default ``data/wiki`` (the
-    canonical valuation-model wiki); point it at another build (e.g. ``data/v0.2/wiki``) to
+    """Wiki the query agent reads (index.json / pages / ledgers). Default ``knowledge/wiki`` (the
+    canonical valuation-model wiki); point it at another build (e.g. ``knowledge/v0.2/wiki``) to
     serve or evaluate against a different corpus without touching the agent code."""
-    return Path(get("agent", "wiki_dir", env="MNA_AGENT_WIKI", default="data/v0.1/wiki"))
+    return Path(get("agent", "wiki_dir", env="MNA_AGENT_WIKI", default="knowledge/v0.1/wiki"))
 
 
 def agent_routes_yaml(wiki_dir: str | Path | None = None) -> Path:
     """Curated routing table for the query agent — ``term → page(s)`` so a hit skips the router
-    LLM. Resolved **per dataset**: ``data/<version>/routes.yaml`` (version from the served
+    LLM. Resolved **per dataset**: ``knowledge/<version>/routes.yaml`` (version from the served
     ``wiki_dir``, default the process wiki). Committed alongside ``decks.yaml``. An explicit env
     ``MNA_AGENT_ROUTES`` file overrides for single-dataset serving (don't set it when serving
     several datasets — it would force one table for all). Absent = pure-LLM routing."""

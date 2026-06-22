@@ -25,7 +25,7 @@ Why a graph (not ``create_agent`` with handoff tools):
 The supervisor *decides* with a plain JSON completion (stdlib :func:`chat` + ``parse_action``,
 same machinery as the old ``core.route``), not tool-calling — more robust on the gemma-4 we
 serve, and routing needs no tools. Only the rare composite-merge ``compose`` calls the LLM
-again. Per-request :class:`apps.agent.datasets.WikiStore` (``store``) is closed over by the
+again. Per-request :class:`apps.agent.utils.datasets.WikiStore` (``store``) is closed over by the
 wiki node, so concurrency safety is preserved. On any failure the whole thing degrades to
 ``core.route`` + direct dispatch, so a flaky round never hard-fails a request.
 
@@ -37,7 +37,9 @@ from __future__ import annotations
 
 import asyncio
 import operator
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any
+
+from langgraph.graph import END, MessagesState, START, StateGraph
 
 from src.stella_kb.llm import chat
 
@@ -45,7 +47,7 @@ from .dart import _clean
 from .wiki.nodes import parse_action
 from ..prompts import load as load_prompt
 
-_MAX_TURNS = 4   # supervisor visits before we force a finish (wiki + dart + slack)
+_MAX_TURNS = 4  # supervisor visits before we force a finish (wiki + dart + slack)
 
 
 # --- state ------------------------------------------------------------------------------
@@ -57,18 +59,20 @@ def _merge(a: dict, b: dict) -> dict:
     return {**(a or {}), **(b or {})}
 
 
-class SupervisorState(TypedDict, total=False):
-    """State threaded through the supervisor graph. The ``operator.add`` / ``_merge`` channels
+class SupervisorState(MessagesState, total=False):
+    """State threaded through the supervisor graph. Subclasses ``MessagesState`` for the standard
+    ``messages`` channel (``add_messages`` reducer). The ``operator.add`` / ``_merge`` channels
     accumulate across the supervisor↔worker loop; ``turns``/``next_query`` are last-write."""
-    question: str                              # the user question
-    next_query: str                            # sub-question the supervisor sent to the routed worker
-    answers: Annotated[dict, _merge]           # {source: answer_text} gathered from workers
-    called: Annotated[list, operator.add]      # worker names already run (for the decision + guard)
-    evidence: Annotated[list, operator.add]    # wiki worker's cell-anchored facts (RAGAS contexts)
-    trace: Annotated[list, operator.add]       # step records [{agent, action, arg, thought}]
-    turns: int                                 # supervisor invocation count (loop guard)
-    answer: str                                # final answer (compose node)
-    source: str                                # final source label: wiki | dart | dart+wiki | none
+
+    question: str  # the user question
+    next_query: str  # sub-question the supervisor sent to the routed worker
+    answers: Annotated[dict, _merge]  # {source: answer_text} gathered from workers
+    called: Annotated[list, operator.add]  # worker names already run (for the decision + guard)
+    evidence: Annotated[list, operator.add]  # wiki worker's cell-anchored facts (RAGAS contexts)
+    trace: Annotated[list, operator.add]  # step records [{agent, action, arg, thought}]
+    turns: int  # supervisor invocation count (loop guard)
+    answer: str  # final answer (compose node)
+    source: str  # final source label: wiki | dart | dart+wiki | none
 
 
 # --- trace helpers ----------------------------------------------------------------------
@@ -122,19 +126,21 @@ def _decide(question: str, called: list[str], answers: dict) -> dict:
     FINISH. Plain JSON completion — no tool-calling. Defaults to FINISH on a parse failure."""
     avail = [w for w in ("wiki", "dart") if w not in called]
     system = load_prompt("supervisor") + "\n\n" + _DECISION_DIRECTIVE
-    user = (f"질문: {question}\n"
-            f"아직 호출하지 않은 도구: {avail or '없음'}\n"
-            f"이미 수집한 자료: {list(answers) or '없음'}\n"
-            "다음 행동을 JSON으로 출력하세요.")
+    user = (
+        f"질문: {question}\n"
+        f"아직 호출하지 않은 도구: {avail or '없음'}\n"
+        f"이미 수집한 자료: {list(answers) or '없음'}\n"
+        "다음 행동을 JSON으로 출력하세요."
+    )
     try:
-        raw = chat([{"role": "system", "content": system},
-                    {"role": "user", "content": user}], max_tokens=200, timeout=60.0)
+        raw = chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=200, timeout=60.0
+        )
         act = parse_action(raw) or {}
     except Exception:  # noqa: BLE001 — a decision must never hard-fail; finish with what we have
         act = {}
     nxt = (act.get("next") or "FINISH").strip()
-    return {"next": nxt, "query": (act.get("query") or question).strip(),
-            "thought": act.get("thought", "")}
+    return {"next": nxt, "query": (act.get("query") or question).strip(), "thought": act.get("thought", "")}
 
 
 # --- nodes ------------------------------------------------------------------------------
@@ -154,34 +160,35 @@ async def _supervisor_node(state: SupervisorState):
     capped = turns > _MAX_TURNS
     valid = nxt in ("wiki", "dart") and nxt not in called
     if not capped and valid:
-        rec = {"agent": "supervisor", "action": "call",
-               "arg": f"{nxt}({query[:80]})", "thought": thought}
+        rec = {"agent": "supervisor", "action": "call", "arg": f"{nxt}({query[:80]})", "thought": thought}
         return Command(goto=nxt, update={"next_query": query, "turns": turns, "trace": [rec]})
 
     # finishing (FINISH, capped, or a repeat/invalid pick) — but never finish empty-handed
     if not answers and "wiki" not in called:
         rec = {"agent": "supervisor", "action": "call", "arg": "wiki(grounding)", "thought": thought}
-        return Command(goto="wiki",
-                       update={"next_query": state["question"], "turns": turns, "trace": [rec]})
+        return Command(goto="wiki", update={"next_query": state["question"], "turns": turns, "trace": [rec]})
     rec = {"agent": "supervisor", "action": "route", "arg": "compose", "thought": thought}
     return Command(goto="compose", update={"turns": turns, "trace": [rec]})
 
 
 def _make_wiki_node(store: Any):
     """Wiki worker node, closing over the per-request ``store`` (concurrency-safe)."""
+
     async def _wiki_node(state: SupervisorState):
         from langgraph.types import Command
 
         from ..core import arun  # deferred: avoid a core <-> supervisor import cycle
+
         q = state.get("next_query") or state["question"]
         out = await arun(q, store=store)
-        ans = out.get("answer", "")
+        ans = out.get("answer")
         trace = _tag(out.get("trace", []), "wiki")
-        trace.append({"agent": "supervisor", "action": "result",
-                      "arg": f"wiki: {ans[:120]}", "thought": ""})
-        return Command(goto="supervisor",
-                       update={"answers": {"wiki": ans}, "called": ["wiki"], "trace": trace,
-                               "evidence": out.get("evidence", [])})
+        trace.append({"agent": "supervisor", "action": "result", "arg": f"wiki: {ans[:120]}", "thought": ""})
+        return Command(
+            goto="supervisor",
+            update={"answers": {"wiki": ans}, "called": ["wiki"], "trace": trace, "evidence": out.get("evidence", [])},
+        )
+
     return _wiki_node
 
 
@@ -190,14 +197,13 @@ async def _dart_node(state: SupervisorState):
     from langgraph.types import Command
 
     from .dart import _arun as dart_arun
+
     q = state.get("next_query") or state["question"]
     out = await dart_arun(q)
     ans = out.get("answer", "")
     trace = _tag(out.get("trace", []), "dart")
-    trace.append({"agent": "supervisor", "action": "result",
-                  "arg": f"dart: {ans[:120]}", "thought": ""})
-    return Command(goto="supervisor",
-                   update={"answers": {"dart": ans}, "called": ["dart"], "trace": trace})
+    trace.append({"agent": "supervisor", "action": "result", "arg": f"dart: {ans[:120]}", "thought": ""})
+    return Command(goto="supervisor", update={"answers": {"dart": ans}, "called": ["dart"], "trace": trace})
 
 
 def _compose_msgs(question: str, answers: dict) -> list[dict]:
@@ -209,10 +215,11 @@ def _compose_msgs(question: str, answers: dict) -> list[dict]:
     if answers.get("dart"):
         blocks.append(f"[DART 자료]\n{answers['dart']}")
     gathered = "\n\n".join(blocks) or "(수집된 자료 없음)"
-    system = (load_prompt("supervisor")
-              + "\n\n이제 아래 수집 자료만 근거로 한국어 최종 답변을 작성하세요. 자료에 없는 내용은 지어내지 마세요.")
-    return [{"role": "system", "content": system},
-            {"role": "user", "content": f"질문: {question}\n\n{gathered}"}]
+    system = (
+        load_prompt("supervisor")
+        + "\n\n이제 아래 수집 자료만 근거로 한국어 최종 답변을 작성하세요. 자료에 없는 내용은 지어내지 마세요."
+    )
+    return [{"role": "system", "content": system}, {"role": "user", "content": f"질문: {question}\n\n{gathered}"}]
 
 
 def _compose_text(question: str, answers: dict) -> str:
@@ -230,24 +237,28 @@ async def _compose_node(state: SupervisorState) -> dict:
         return {"answer": "", "source": "none"}
     if len(answers) == 1:
         src, ans = next(iter(answers.items()))
-        return {"answer": ans, "source": src,
-                "trace": [{"agent": "supervisor", "action": "passthrough", "arg": src, "thought": ""}]}
+        return {
+            "answer": ans,
+            "source": src,
+            "trace": [{"agent": "supervisor", "action": "passthrough", "arg": src, "thought": ""}],
+        }
     final = await asyncio.to_thread(_compose_text, state["question"], answers)
-    return {"answer": final, "source": _source(answers),
-            "trace": [{"agent": "supervisor", "action": "answer", "arg": "", "thought": ""}]}
+    return {
+        "answer": final,
+        "source": _source(answers),
+        "trace": [{"agent": "supervisor", "action": "answer", "arg": "", "thought": ""}],
+    }
 
 
 def _build_supervisor(store: Any):
     """Compile the supervisor graph; the wiki node closes over the per-request ``store``.
     Factored out so tests can drive a real graph with stubbed nodes/LLM offline."""
-    from langgraph.graph import END, START, StateGraph
-
     g = StateGraph(SupervisorState)
     g.add_node("supervisor", _supervisor_node)
     g.add_node("wiki", _make_wiki_node(store))
     g.add_node("dart", _dart_node)
     g.add_node("compose", _compose_node)
-    g.add_edge(START, "supervisor")   # supervisor/worker nodes route dynamically via Command(goto)
+    g.add_edge(START, "supervisor")  # supervisor/worker nodes route dynamically via Command(goto)
     g.add_edge("compose", END)
     return g.compile()
 
@@ -272,10 +283,16 @@ async def _fallback(question: str, store: Any) -> dict:
         src = "wiki"
     if src == "dart":
         from .dart import _arun as dart_arun
+
         return {"source": "dart", **(await dart_arun(question))}
     out = await arun(question, store=store)
-    return {"source": "wiki", "answer": out["answer"], "trace": out["trace"],
-            "steps": out["steps"], "evidence": out.get("evidence", [])}
+    return {
+        "source": "wiki",
+        "answer": out["answer"],
+        "trace": out["trace"],
+        "steps": out["steps"],
+        "evidence": out.get("evidence", []),
+    }
 
 
 async def arun_supervised(question: str, store: Any = None) -> dict:
@@ -292,9 +309,13 @@ async def arun_supervised(question: str, store: Any = None) -> dict:
     if not answer or final.get("source") == "none":  # nothing gathered → ground via the wiki
         return await _fallback(question, store)
     trace = _renumber(final.get("trace", []))
-    return {"source": final.get("source") or _source(final.get("answers", {})),
-            "answer": answer, "trace": trace, "steps": _count_calls(trace),
-            "evidence": final.get("evidence", [])}
+    return {
+        "source": final.get("source") or _source(final.get("answers", {})),
+        "answer": answer,
+        "trace": trace,
+        "steps": _count_calls(trace),
+        "evidence": final.get("evidence", []),
+    }
 
 
 def run_supervised(question: str, store: Any = None) -> dict:
@@ -304,7 +325,7 @@ def run_supervised(question: str, store: Any = None) -> dict:
 
 def _chunk(text: str, size: int = 24) -> list[str]:
     """Split a finished answer into replay fragments for token-style SSE delivery."""
-    return [text[i:i + size] for i in range(0, len(text), size)] or [text]
+    return [text[i : i + size] for i in range(0, len(text), size)] or [text]
 
 
 async def astream_supervised(question: str, store: Any = None):
@@ -337,15 +358,19 @@ async def astream_supervised(question: str, store: Any = None):
     emitted = 0
     final: dict = {}
     try:
-        async for state in _build_supervisor(store).astream(_seed(question), config=_LIMIT,
-                                                             stream_mode="values"):
+        async for state in _build_supervisor(store).astream(_seed(question), config=_LIMIT, stream_mode="values"):
             final = state
             trace = state.get("trace", [])
             while emitted < len(trace):
-                e = trace[emitted]   # read-only: the yielded event is a fresh dict, no copy needed
-                yield {"type": "step", "step": emitted, "agent": e.get("agent", ""),
-                       "action": e.get("action", ""), "arg": e.get("arg", ""),
-                       "thought": e.get("thought", "")}
+                e = trace[emitted]  # read-only: the yielded event is a fresh dict, no copy needed
+                yield {
+                    "type": "step",
+                    "step": emitted,
+                    "agent": e.get("agent", ""),
+                    "action": e.get("action", ""),
+                    "arg": e.get("arg", ""),
+                    "thought": e.get("thought", ""),
+                }
                 emitted += 1
     except Exception:  # noqa: BLE001 — degrade to a direct wiki stream
         async for ev in astream_run(question, store=store, source="wiki"):

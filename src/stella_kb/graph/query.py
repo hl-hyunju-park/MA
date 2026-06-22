@@ -6,7 +6,7 @@ evidence comes from deterministic graph traversal, and every number carries its 
     from src.stella_kb.graph.query import ask
     print(ask("What is the equity value and what drives it?"))
 
-Run ``python -m src.stella_kb.graph.semantic`` once first to write ``data/stella_graph.json``.
+Run ``python -m src.stella_kb.graph.semantic`` once first to write ``knowledge/stella_graph.json``.
 """
 
 from __future__ import annotations

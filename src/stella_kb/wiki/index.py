@@ -4,11 +4,11 @@ This is the entry point an agent reads first to decide *which page to open* — 
 "key" of the vectorless KB. Deterministic (no LLM): it joins the sheet-name taxonomy,
 the parsed metadata, and the formula DAG into two artifacts:
 
-  - ``data/wiki/index.json``  — machine-readable: a section->group->page tree, a
+  - ``knowledge/wiki/index.json``  — machine-readable: a section->group->page tree, a
     per-page entry (title/case/unit/aliases/items/links), and an **alias index**
     (``term -> [{page, cell}]``) that resolves a KO/EN query term to page+cell with no
     embeddings (the words->node resolver).
-  - ``data/wiki/INDEX.md``    — the human/agent table of contents: sections with
+  - ``knowledge/wiki/INDEX.md``    — the human/agent table of contents: sections with
     ``[[page]]`` wikilinks and key aliases.
 
 Classification is by sheet-name **tokens**, not divider position: ``_raw.xlsx`` is
@@ -16,7 +16,7 @@ missing the ` Biz Plan>>`/`Fin.Model>>` divider tabs, so position-walking would 
 the fund/macro sheets. Tokens (``장표``, ``_비용``/``_거래내역``/``_관리보수``, ``EIU``,
 ``4.1``/``4.2``) are the schema (see docs/workbook_analysis.md §0).
 
-Usage (from repo root, venv active; needs data/parsed + data/wiki/pages):
+Usage (from repo root, venv active; needs knowledge/parsed + knowledge/wiki/pages):
     python -m src.stella_kb.wiki.index
 """
 
@@ -92,7 +92,7 @@ def _norm(term: str) -> str:
 def _desc(sheet: str) -> str | None:
     """First sentence of the page's grounded "What this is" prose, for the ToC.
 
-    Reuses the already-LLM-written Korean blurb in ``data/wiki/pages/<sheet>.md`` so the
+    Reuses the already-LLM-written Korean blurb in ``knowledge/wiki/pages/<sheet>.md`` so the
     index gains a discriminating one-liner per sheet with no extra LLM call. Titles alone
     collide ("Income Statement" ×2, "DCF Summary" ×2); this disambiguates by purpose.
     """
