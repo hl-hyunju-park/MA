@@ -108,19 +108,6 @@ def agent_cross_ref_pairing() -> bool:
                default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
 
 
-def agent_semantic_resolve() -> bool:
-    """When true, the first routing attempt uses the **closed-set semantic resolver** — one
-    whitelist-guarded LLM call over the full page catalog (title + aliases + metadata,
-    ``retrieval.tools.page_catalog``) that maps the sub-question straight to page(s), the graph
-    engine's ``resolve_metrics`` trick. It replaces the substring ``lookup``→router path on try-1
-    (latency-neutral: one call, same as the router) and bridges KO/EN vocab the substring index
-    misses (관리수수료 ↔ "management fee"). On a miss it falls through to the LLM router; retries
-    always use the router. Default **off** — query-affecting, so enable for the A/B
-    (env ``MNA_SEMANTIC_RESOLVE``) before turning it on by default."""
-    return get("agent", "semantic_resolve", env="MNA_SEMANTIC_RESOLVE",
-               default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
-
-
 def agent_deterministic_retrieve() -> bool:
     """When true, the retriever first tries a **deterministic** parse of a page's ``value [cell]``
     table (``retrieval.tools.extract_page_items``) and, on a hit, skips that page's LLM extraction — a

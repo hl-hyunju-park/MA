@@ -16,7 +16,6 @@ from ...retrieval import (
     extract_page_items,
     lookup,
     open_page,
-    page_catalog,
     query_ledger,
     route_lookup,
     trace_links,
@@ -46,35 +45,6 @@ def _match_page(raw_pick: str, valid: set, by_norm: dict) -> str | None:
     return by_norm.get(re.sub(r"\s+", "", p).casefold())
 
 
-def _resolve_pages(sub: dict, index: dict, top_k: int) -> tuple[list, str]:
-    """Closed-set semantic resolver: map a sub-question to wiki page(s) in ONE whitelist-guarded
-    LLM call — the graph engine's ``resolve_metrics`` trick, for pages. The model is handed the
-    full page catalog (``page_catalog``: title + aliases + disambiguation metadata) and returns
-    the router's ``{"pages": [...]}`` shape, so the **same** ``_match_page`` guard validates it.
-
-    This replaces the substring ``lookup`` on the first attempt: an alias-rich *closed* catalog
-    lets the LLM bridge KO/EN vocabulary the substring index can't (관리수수료 ↔ "management fee"),
-    while the trailing metadata keeps the instance-disambiguation (which fund/period/case).
-    Returns ``([], "")`` on no hit (or a parse failure) so the caller falls back to the LLM
-    router — same degrade path as a curated-routes miss."""
-    user = (
-        f"카탈로그:\n{page_catalog(index)}\n\n질문: {sub['ask']}\n\n"
-        f"관련 페이지를 가능성 높은 순으로 최대 {top_k}개까지 고르세요. JSON 객체로 출력하세요."
-    )
-    # 500 tokens: the model sometimes writes a long Korean `thought`; too tight a budget truncates
-    # the object before the `pages` array closes (→ empty parse, a wasted resolver round).
-    act, _ = engine._ask(engine.RESOLVER, user, 500)
-    valid = set(index.get("pages", {}).keys())
-    by_norm = {re.sub(r"\s+", "", v).casefold(): v for v in valid}
-    picks, seen = [], set()
-    for raw in (act or {}).get("pages") or []:  # same [[wikilink]]/quote-tolerant guard as the router
-        m = _match_page(raw, valid, by_norm)
-        if m and m not in seen:
-            seen.add(m)
-            picks.append(m)
-    return picks, (act or {}).get("thought", "")
-
-
 def _route(sub: dict, tried: list, index: dict, index_md: str,
            wiki_dir: str | None = None) -> tuple[list, dict | None, str]:
     """Pick the wiki page(s) for one sub-question; on a trace sub-Q expand along the DAG.
@@ -93,12 +63,8 @@ def _route(sub: dict, tried: list, index: dict, index_md: str,
         picks = route_lookup(hints, index, wiki_dir)
         if picks:
             rthought = "routes.yaml 직결 — 라우터 LLM 생략"
-        elif config.agent_semantic_resolve():  # closed-set resolver (replaces substring lookup→router)
-            picks, rt = _resolve_pages(sub, index, top_k)
-            if picks:
-                rthought = "resolve_pages 직결 — 닫힌 카탈로그 해석" + (f" ({rt})" if rt else "")
 
-    if not picks:  # no curated/resolver hit (or this is a retry) → fall back to the LLM router
+    if not picks:  # no curated hit (or this is a retry) → fall back to the LLM router
         lookups = "\n\n".join(lookup(index, t) for t in hints) if hints else "(no hint terms)"
         avoid = (
             (

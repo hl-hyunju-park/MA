@@ -23,7 +23,6 @@ from src.stella_kb.llm import chat
 from ...prompts import load as load_prompt
 
 PLANNER = load_prompt("planner")
-RESOLVER = load_prompt("resolve_pages")  # closed-set words→page resolver (the graph's resolve_metrics trick)
 ROUTER = load_prompt("router")
 RETRIEVER = load_prompt("retriever")
 VERIFIER = load_prompt("verifier")

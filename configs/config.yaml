@@ -44,9 +44,6 @@ agent:
   router_top_k: 5            # env: MNA_ROUTER_TOPK — max pages the router opens per round
   deterministic_retrieve: false  # env: MNA_DET_RETRIEVE — parse 'value [cell]' tables instead
                                  # of an LLM call per structured page; off pending a quality A/B
-  semantic_resolve: false    # env: MNA_SEMANTIC_RESOLVE — try-1 closed-set page resolver (one
-                             # whitelist-guarded LLM call over the page catalog) instead of
-                             # substring lookup→router; bridges KO/EN vocab; off pending a quality A/B
   # routes:                 # env: MNA_AGENT_ROUTES — explicit routes.yaml (single-dataset only)
 
 # Hand-authored, version-controlled curation: per dataset version under knowledge/<version>/ —

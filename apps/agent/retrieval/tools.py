@@ -134,30 +134,6 @@ def _norm(term: str) -> str:
     return re.sub(r"\s+", "", term).casefold()
 
 
-def page_catalog(index: dict, alias_cap: int = 40) -> str:
-    """Closed-set page catalog for the semantic resolver (the words→page mapper).
-
-    One line per page — ``name: title | aliases  [kind · group · case · period · unit]`` —
-    where the trailing metadata is exactly what ``lookup`` surfaces, so the resolver can
-    disambiguate *instances* (which fund's 관리보수, which period/case), not just concepts.
-    The graph engine's ``llm._catalog`` for metrics, mirrored for wiki pages: a compact closed
-    vocabulary handed to one whitelist-guarded LLM call. ~52 pages → ~6k tokens, so the whole
-    catalog fits one prompt. ``alias_cap`` bounds a pathological page's auto-generated alias
-    tail (recall lives in the first handful; the long tail is mostly cell-derived noise)."""
-    pages = index.get("pages", {})
-    lines = []
-    for name, e in pages.items():
-        aliases = [a for a in (e.get("aliases") or []) if a][:alias_cap]
-        meta = " · ".join(m for m in (
-            e.get("kind"), e.get("group"),
-            (f"case {e['case']}" if e.get("case") else None),
-            e.get("period"), e.get("unit"),
-        ) if m)
-        names = " | ".join([e.get("title") or name, *aliases])
-        lines.append(f"{name}: {names}" + (f"  [{meta}]" if meta else ""))
-    return "\n".join(lines)
-
-
 def lookup(index: dict, term: str, limit: int = 12) -> str:
     """Resolve a term to candidate pages via the alias index (the words→node resolver).
 
