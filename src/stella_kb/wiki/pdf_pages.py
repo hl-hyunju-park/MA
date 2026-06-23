@@ -30,6 +30,7 @@ from pathlib import Path
 
 from ..config import pdf_structure_cache
 from ..llm import _json_span, cached_chat
+from ..parsers.pdf.diagram import diagram_terms
 from ..prompts import load as load_prompt
 
 _SYSTEM = load_prompt("pdf_page_system")
@@ -192,16 +193,20 @@ def _extract_tables(md: str) -> list[str]:
     return blocks
 
 
-def _table_terms(tables: list[str], cap: int = 24) -> list[str]:
+def _table_terms(tables: list[str], cap: int = 48) -> list[str]:
     """Non-numeric cell texts (column headers + row labels) from the raw tables → alias terms,
-    so a recovered table page is routable by its headers/entities (담보유형, peer names, …)."""
+    so a recovered table page is routable by its headers/entities (담보유형, peer names, …).
+
+    The length cap is 60, not 30, so long deal-entity names survive (``K&C Asia Pacific Pte
+    Limited 지분율``, ``글로벌골프 이큅먼트앤어패럴 1``) — exactly what a structure question asks for;
+    the old 30-char cap silently dropped them."""
     terms: list[str] = []
     seen: set = set()
     for tbl in tables:
         for row in tbl.splitlines():
             for c in row.split("|"):
                 c = re.sub(r"\s+", " ", c).strip(" *`")
-                if 2 <= len(c) <= 30 and "--" not in c and not _NUMERIC.match(c):
+                if 2 <= len(c) <= 60 and "--" not in c and not _NUMERIC.match(c):
                     k = _norm(c)
                     if k and k not in seen:
                         seen.add(k)
@@ -284,8 +289,15 @@ def build_pages(
         raw_tables = _extract_tables(text)            # the page's full grids, verbatim
         s_aliases = s.get("aliases") or []
         page_aliases = [a for a in s_aliases if a]
-        page_aliases += [t for t in _table_terms(raw_tables) if _norm(t) not in
-                         {_norm(a) for a in page_aliases}]   # + header/row-label terms
+        # + header/row-label terms from raw grids, then + every box/connection entity from the
+        # page's [다이어그램] block (org/structure charts live in `- …` list lines, not pipe tables,
+        # so the table harvester alone leaves a structure page unroutable by its own entities).
+        extra = _table_terms(raw_tables) + diagram_terms(text)
+        seen_norm = {_norm(a) for a in page_aliases}
+        for t in extra:
+            if _norm(t) not in seen_norm:
+                seen_norm.add(_norm(t))
+                page_aliases.append(t)
         # Only a genuinely empty page (no figures, no aliases, no tables — a cover/divider) is
         # dropped. Dense-table pages the structurer couldn't parse (Key Financial Information,
         # GPC peer table) used to vanish here; now they're kept via their raw tables/terms.
@@ -327,7 +339,7 @@ def build_pages(
             "n_items": len(figs),
             "has_page": True,
             "aliases": page_aliases,
-            "items": [{"label": lb, "ko": None, "cell": tag, "role": "pdf"} for lb in labels],
+            "items": [{"label": lb, "cell": tag, "role": "pdf"} for lb in labels],
             "depends_on": [],
             "feeds_into": [],
             "source": "PDF",

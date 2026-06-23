@@ -241,7 +241,6 @@ def build_index() -> dict:
             "items": [
                 {
                     "label": it.get("label"),
-                    "ko": it.get("label_ko"),
                     "cell": it.get("label_cell"),
                     "role": it.get("role"),
                 }
@@ -263,12 +262,8 @@ def build_index() -> dict:
 
 def render_md(index: dict) -> str:
     pages, tree = index["pages"], index["tree"]
-    n_alias = len(index["alias_index"])
     out = [
         "# Project Stella — Wiki Index (ToC)",
-        "",
-        f"> {len(pages)} pages · {n_alias} alias terms · vectorless lookup: resolve a "
-        "KO/EN term via the alias index → open the `[[page]]` → follow links.",
         "",
     ]
 
