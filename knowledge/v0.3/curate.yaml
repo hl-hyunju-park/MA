@@ -1,0 +1,25 @@
+# Curation policy for the v0.3 KDB Life (KDB생명보험) DD data room.
+#
+# The committed source of truth for which files get ingested. The raw room is ~1,520 files in 9
+# formats; ingesting all of them would run vision/LLM over ~1,000 mostly-boilerplate PDFs. This
+# policy trims to the ~281-file DD core *before any spend*, deterministically and auditably
+# (OpenKB whitelist pattern). Mirrors DEFAULT_EXCLUDE in src/stella_kb/wiki/data_room.py — keep
+# the two in sync; data_room.load_policy() falls back to that constant when this file is absent.
+#
+# Each pattern is fnmatch'd against a file's POSIX path *relative to the corpus root* (NFC-normalized,
+# so KO globs match macOS NFD filenames). A file is dropped if any `exclude` glob matches AND no
+# `include` glob re-admits it (include is evaluated after exclude, so it rescues individual files
+# from a bulk drop).
+
+exclude:
+  - "*5.4. 영업계약*"          # 142 insurance-policy 약관 — product boilerplate, not DD data
+  - "*2.6.3.*평가보고서*"       # 485 per-security valuation reports — the 4 summary xlsx hold the aggregate
+  - "*4.1. 교육세*"            # bulk repetitive tax filings (education / VAT / withholding / local) …
+  - "*4.4. 부가가치세*"
+  - "*4.5. 원천징수*"
+  - "*4.6. 지방세*"
+  - "*1.3. 정관 및 사규*"       # 218 corporate bylaws/regulations — governance boilerplate
+
+# Re-admit specific files an exclude glob above would otherwise drop, e.g.:
+#   - "*정관 20250331.pdf"     # keep the current articles of incorporation out of the bylaws bulk-drop
+include: []
