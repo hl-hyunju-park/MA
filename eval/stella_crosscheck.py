@@ -1,6 +1,6 @@
 """Evaluate the **wiki-based index agent** on the stella_case PDF×Excel cross-check set.
 
-The cross-check dataset (``test_data/rag_test_dataset/stella_case/``) ships its own
+The cross-check dataset (``raw/rag_test_dataset/stella_case/``) ships its own
 corpus — an 18-sheet cleaned Excel (``RAG_0604_테스트용_Input.xlsx``) plus a summary PDF —
 distinct from the project's valuation-model wiki. This harness builds a **fresh, Excel-only**
 wiki index over that test workbook (PDF intentionally excluded — see the README's 3-tier
@@ -28,7 +28,7 @@ from src.stella_kb import config
 
 ROOT = Path(__file__).resolve().parents[1]
 # The golden cross-check case (Excel + FDD PDF + 20 ground-truth questions). The dataset is
-# versioned under test_data/<ver>/; override CASE/questions/output via env so the same harness
+# versioned under raw/<ver>/; override CASE/questions/output via env so the same harness
 # can score a different build (e.g. the v0.2 wiki) without code edits.
 CASE = Path(os.environ.get(
     "EVAL_CASE", str(ROOT / "test_data" / "v0.1" / "rag_test_dataset" / "stella_case")))
@@ -414,20 +414,27 @@ def judge() -> None:
     SCORES_JSON.write_text(json.dumps(scores, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # scoreboard by tier
+    from statistics import pstdev
+
+    def _sd(v: list) -> float:
+        return pstdev(v) if len(v) > 1 else 0.0
+
     tiers: dict[int, list] = {1: [], 2: [], 3: []}
     for s in scores:
         tiers[s["tier"]].append(s["score"])
     lines = ["# Stella cross-check — wiki agent (Excel-only index)\n",
-             "| Tier | n | mean | criteria |", "|---|---|---|---|"]
+             "_단일 런 · 공유 vLLM은 비결정적 — Δ<±0.1은 노이즈. 여러 런 평균으로 비교._\n",
+             "| Tier | n | mean ± σ | criteria |", "|---|---|---|---|"]
     names = {1: "정합 재구성", 2: "불일치 감지", 3: "검증 불가"}
-    total_sum = total_n = 0
+    all_scores: list = []
     for t in (1, 2, 3):
         v = tiers[t]
         m = sum(v) / len(v) if v else 0.0
-        total_sum += sum(v); total_n += len(v)
-        lines.append(f"| T{t} {names[t]} | {len(v)} | {m:.2f} | "
+        all_scores += v
+        lines.append(f"| T{t} {names[t]} | {len(v)} | {m:.2f} ± {_sd(v):.2f} | "
                      f"{'numbers+citation' if t==1 else 'flag discrepancy' if t==2 else 'honest unverifiable'} |")
-    lines.append(f"| **All** | {total_n} | **{(total_sum/total_n if total_n else 0):.2f}** | |")
+    all_m = sum(all_scores) / len(all_scores) if all_scores else 0.0
+    lines.append(f"| **All** | {len(all_scores)} | **{all_m:.2f} ± {_sd(all_scores):.2f}** | |")
     lines += ["", "## Per-question", "", "| Q | Tier | Score | Verdict | Reason |",
               "|---|---|---|---|---|"]
     recs_by_id = {r["id"]: r for r in recs}

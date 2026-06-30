@@ -1,6 +1,6 @@
 """Evaluate the wiki agent on the **v0.2 vision-QA** ground-truth set (rubric-based).
 
-This set (``test_data/v0.2/ground_truth/qa.jsonl``, 54 items over the STELLA/CAESAR/LIFE FDD
+This set (``raw/v0.2/ground_truth/qa.jsonl``, 54 items over the STELLA/CAESAR/LIFE FDD
 decks) is *not* the tier-based Excel cross-check (see ``stella_crosscheck.py``). Each record is
 a born-digital advisory-deck **visual** question — structure diagrams, charts, matrices — with
 a golden ``ground_truth`` and a per-item ``rubric`` instead of a tier. So judging is
@@ -46,6 +46,7 @@ def load_questions() -> list[dict]:
 def _answer_one(q: dict, app, store) -> dict:
     from apps.agent import core
 
+    evidence, paths = [], []
     try:
         res = core.run(q["question"], max_steps=3, app=app, store=store)
         ans = res["answer"]
@@ -55,6 +56,17 @@ def _answer_one(q: dict, app, store) -> dict:
                 for e in res.get("trace", [])
                 if e.get("action") == "route" and e.get("arg") not in (None, "(none)")
             }
+        )
+        # The cell-anchored facts the synthesizer actually received, and the routing path taken
+        # (routes.yaml / resolver / router) per branch — recorded so a regression is *diffable*
+        # (which evidence row vanished, which page swapped) instead of just "score dropped".
+        evidence = [
+            {k: e.get(k) for k in ("page", "cell", "term", "period", "value", "ask")}
+            for e in res.get("evidence", [])
+        ]
+        paths = sorted(
+            {e.get("thought", "") for e in res.get("trace", [])
+             if e.get("action") == "route" and e.get("thought")}
         )
     except Exception as e:  # noqa: BLE001 — record the failure, keep going
         ans, pages = f"[ERROR] {type(e).__name__}: {e}", []
@@ -70,6 +82,8 @@ def _answer_one(q: dict, app, store) -> dict:
         "rubric": q.get("rubric", ""),
         "agent_answer": ans,
         "pages_opened": pages,
+        "evidence": evidence,
+        "router_paths": paths,
     }
 
 
@@ -148,14 +162,20 @@ def _mean(xs: list[float]) -> float:
     return sum(xs) / len(xs) if xs else 0.0
 
 
+def _stdev(xs: list[float]) -> float:
+    """Population σ — the run-to-run spread that says whether a mean delta is signal or noise."""
+    from statistics import pstdev
+    return pstdev(xs) if len(xs) > 1 else 0.0
+
+
 def _breakdown_table(title: str, key: str, scores: list[dict]) -> list[str]:
     groups: dict[object, list[float]] = defaultdict(list)
     for s in scores:
         groups[s.get(key)].append(s["score"])
-    rows = [f"### {title}", "", "| 그룹 | n | mean |", "|---|---|---|"]
+    rows = [f"### {title}", "", "| 그룹 | n | mean ± σ |", "|---|---|---|"]
     for g in sorted(groups, key=lambda x: str(x)):
         v = groups[g]
-        rows.append(f"| {g} | {len(v)} | {_mean(v):.2f} |")
+        rows.append(f"| {g} | {len(v)} | {_mean(v):.2f} ± {_stdev(v):.2f} |")
     rows.append("")
     return rows
 
@@ -172,7 +192,8 @@ def judge() -> None:
     lines = [
         f"# v0.2 비전-QA 평가 — wiki agent (dataset={DATASET})",
         "",
-        f"**전체: {len(scores)}문항 · 평균 {_mean(all_scores):.2f}**",
+        f"**전체: {len(scores)}문항 · 평균 {_mean(all_scores):.2f} ± {_stdev(all_scores):.2f} (n={len(all_scores)})**",
+        "_(단일 런 · 공유 vLLM은 비결정적 — Δ<±0.1은 노이즈. 여러 런 평균으로 비교.)_",
         "",
     ]
     lines += _breakdown_table("프로젝트(doc)별", "doc", scores)
