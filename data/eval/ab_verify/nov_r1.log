@@ -1,0 +1,2 @@
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_verify/nov_r1 cmds=['eval']
+answering 54 questions · dataset=v0.2 (55 pages) · 8 workers

@@ -1,0 +1,31 @@
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_tokens/base_r2 cmds=['eval']
+answering 54 questions · dataset=v0.2 (55 pages) · 8 workers
+--- S07 (STELLA/C3-structural)  제공된 evidence에는 스텔라 골프산업 거래배수(EV/EBITDA)의 상단(23.2x, `FDD19!FDD19`)과 하단(
+--- S01 (STELLA/C3-structural)  네, 스텔라 지배구조상 모회사가 20% 미만의 소액 지분만 직접 보유하고 있는 펀드들이 다수 존재합니다. 해당 펀드와 지분율은
+--- S08 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스) 운용 펀드 중 설정일과 만기일 기준 존속기간이 가장 긴 펀드는 센트로이드제2호바이아웃입
+--- S02 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)는 센트로이드매니지먼트의 지분을 100.0% (`FDD3, page FDD3`) 보유하고
+--- S06 (STELLA/C2-visualonly)  스텔라 Management Case와 Deloitte Case의 지분가치 차이에서 투자자산 회수가치(Exit Value) 조정
+--- S04 (STELLA/C3-structural)  스텔라 가치평가 결과, Deloitte Case 기준 DCF 지분가치는 시장가치 접근법(GPC, GTC)의 중앙값(Median
+--- S03 (STELLA/C3-structural)  스텔라(솔리드이엔지) 최초 인수 당시의 투자구조 및 자금 흐름은 다음과 같습니다.  **1. 자금 흐름 순서** 자금은 펀드,
+--- S05 (STELLA/C1-binding)  FY24부터 FY29까지 매년 운용펀드 규모(AUM) 전망치를 비교한 결과, 모든 연도에서 Management Case가 De
+--- S12 (STELLA/C4-reconcile)  스텔라의 FY23 영업비용은 STELLA FDD 보고서 기준 7,278백만원(`FDD13, page FDD13`)이며, 엑셀 
+--- S09 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)가 운용 중인 펀드 중 현재 기준 수익률(IRR)이 마이너스인 펀드는 다음과 같습니다. 
+--- S16 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역의 매도가능증권 Dec-23 잔액은 12,296(`FDD12, page FDD12`)입니다. 이는 BS
+--- S10 (STELLA/C1-binding)  스텔라의 Operating Revenue(관리보수) 전망을 비교한 결과, FY24부터 FY29까지 전 기간에 걸쳐 Manage
+--- S14 (STELLA/C2-visualonly)  스텔라 출자자별 출자금액 현황(Jun-24 기준)에서 가장 많이 출자한 단일 LP는 새마을금고이며, 출자 금액은 5,900억원
+--- S18 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역상 장기대여금의 Dec-23 잔액은 9,375(`FDD12, page FDD12 — [STELLA] A
+--- S15 (STELLA/C4-reconcile)  스텔라 센트로이드인베스트먼트파트너스의 FY23 영업수익은 FDD 보고서 기준 13,020백만원(`FDD13, page FDD1
+--- S19 (STELLA/C1-binding)  스텔라 Deloitte Case DCF에서 WACC 15.5%, 영구성장률(PGR) 1.0%를 적용했을 때의 지분가치는 85,
+--- S20 (STELLA/C3-structural)  스텔라 Deloitte Case DCF에서 영구성장률(PGR)을 1.0%로 고정하고 WACC를 13.5%에서 17.5%까지 올
+--- S22 (STELLA/C1-binding)  스텔라 상장사 비교(GPC)에서 EV/EBITDA 배수가 가장 낮은 회사는 Q Capital Partners(`FDD18!FD
+--- S21 (STELLA/C2-visualonly)  스텔라 Deloitte Case DCF 민감도 분석 결과, 지분가치가 가장 커지는 WACC와 성장률(PGR) 조합은 WACC 
+--- S17 (STELLA/C3-structural)  스텔라 가치평가 방법별 지분가치 범위(최저~최고)를 분석한 결과, 최저~최고 폭이 가장 넓은 방법은 **GPC**입니다.  각
+--- S24 (STELLA/C3-structural)  스텔라 거래사례 비교(GTC) 데이터에서 EV/EBITDA 배수가 마이너스로 기록된 거래는 다음과 같습니다.  - Plutus
+parse_action miss: persona=router max_tokens=400 truncated=True rawlen=846
+--- S28 (STELLA/C2-visualonly)  스텔라 거래사례 비교(GTC)에서 Deal Value가 가장 큰 거래는 Woori Venture Partners Co., Lt
+--- S30 (STELLA/C4-reconcile)  스텔라 보고서 본문에서 명시한 추정기간 동안의 총 운용 펀드 수는 13개(`FDD16, page FDD16`)입니다.  본문 
+--- S23 (STELLA/C3-structural)  제공된 evidence에 따르면, 스텔라 상장사 비교(GPC) 배수 통계에서 특정 회사가 이상치로 인해 제외되었다는 구체적인 
+--- L02 (LIFE/C2-visualonly)  FY2025 기말 CSM을 가장 크게 감소시킨 요인은 CSM 조정이며, 그 크기는 -2,854억원(`FDD8!FDD8`)입니다
+--- S29 (STELLA/C4-reconcile)  2024년 8월 기준 스텔라의 조직 부문별 인원과 임직원 수 엑셀 데이터를 대조한 결과는 다음과 같습니다.  먼저, 보고서(F
+--- S26 (STELLA/C5-honesty)  스텔라 Deloitte Case DCF에서 WACC 15.5% 및 성장률(PGR) 2.5% 가정 시, Base 케이스의 지분가
+--- S25 (STELLA/C5-honesty)  스텔라 상장사 비교(GPC) 분석 결과, 대상회사의 EV/EBITDA 배수는 최소(Min) 2.4x (`FDD18, page 

@@ -43,3 +43,6 @@ docs/agent_graph.png
 
 # detached server logs (run_server.sh / vite)
 .run/
+
+# CodeGraph local index (SQLite db + daemon socket/pid; machine-local, regenerable)
+.codegraph/

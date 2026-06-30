@@ -1,0 +1,6 @@
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_verify/base_r1 cmds=['eval']
+answering 54 questions · dataset=v0.2 (55 pages) · 8 workers
+--- S01 (STELLA/C3-structural)  네, 스텔라 지배구조상 모회사가 20% 미만의 소액 지분만 직접 보유하고 있는 펀드들이 다수 존재합니다. 해당 펀드와 지분율은
+--- S07 (STELLA/C3-structural)  스텔라 골프산업 거래배수(EV/EBITDA) 분포의 연도별 상·하단 격차를 분석한 결과는 다음과 같습니다.  연도별 격차 계산
+--- S08 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스) 운용 펀드 중 설정일 대비 만기일 기준으로 가장 오래 운용되는 펀드는 센트로이드제2호바
+--- S02 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)는 센트로이드매니지먼트의 지분을 100.0% (`FDD3, page FDD3`) 보유하고

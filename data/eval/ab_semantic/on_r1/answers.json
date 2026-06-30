@@ -1,0 +1,788 @@
+[
+  {
+    "id": "S01",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "스텔라 지배구조 보면, 모회사가 자기 PEF 중에 어디 한 곳을 20%도 안 되는 소액 지분만 직접 갖고 있는 데가 있어? 있으면 어느 펀드고 몇 %야?",
+    "ground_truth": "4.13% (라벨 '4.13% [1]'). 센트로이드 인베스트먼트 파트너스 박스에서 센트로이드 제1호 차이나 PEF 박스로 연결되는 수평선 위에 이탤릭체로 '4.13% [1]'로 표기됨. 같은 모회사에서 좌하단 센트로이드 매니지먼트로 내려가는 선은 100.0%로 별개.",
+    "rubric": "'센트로이드 인베스트먼트 파트너스 → 센트로이드 제1호 차이나 PEF' 화살표의 4.13%를 정확히 읽어야 정답. 인접한 100.0%(매니지먼트行)·13.9%(차이나 PEF→바이오行) 등 다른 라벨을 답하면 오답. 화살표 방향·시작/끝 박스 바인딩이 핵심.",
+    "agent_answer": "네, 스텔라 지배구조상 모회사가 20% 미만의 소액 지분만 직접 보유하고 있는 펀드들이 존재합니다. 해당 펀드와 지분율은 다음과 같습니다.\n\n*   센트로이드 제1호 차이나 PEF: 4.13% (`FDD3, page FDD3 — [STELLA] Group Structure`)\n*   센트로이드 제2호 바이아웃 PEF: 2.31% (`FDD3, page FDD3 — [STELLA] Group Structure`)\n*   센트로이드 제3호 그로쓰 창업벤처전문 PEF: 1.72% (`FDD3, page FDD3 — [STELLA] Group Structure`)\n*   센트로이드 옐로씨 제1호바이아웃 PEF: 1.60% (`FDD3, page FDD3 — [STELLA] Group Structure`)\n*   센트로이드 제7호 바이아웃 PEF: 1.61% (`FDD3, page FDD3 — [STELLA] Group Structure`)\n*   센트로이드 제7-1호 바이아웃 PEF: 0.23% (`FDD3, page FDD3 — [STELLA] Group Structure`)\n*   센트로이드 제5호 바이아웃 PEF: 0.08% (`FDD3, page FDD3 — [STELLA] Group Structure`)",
+    "pages_opened": [
+      "FDD3 — [STELLA] Group Structure"
+    ]
+  },
+  {
+    "id": "S02",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "스텔라에서 100% 지분으로 직접 갖고 있는 자회사가 있어? 있으면 누가 누구를 100% 보유하는 거고, 그 둘 사이 내부거래 항목이랑 금액(백만원)도 알려줘.",
+    "ground_truth": "(1) 100% 지분 연결: 중앙 녹색 박스 '센트로이드 인베스트먼트 파트너스'가 하단 남색 박스 '센트로이드 매니지먼트'를 100% 보유. 우측 ㄱ자형 연결선이 녹색 박스에서 출발해 화살표가 남색 박스(센트로이드 매니지먼트)로 들어감 — 모회사(센트로이드 인베스트먼트 파트너스) → 자회사(센트로이드 매니지먼트) 방향. (2) 해당 100% 연결선 거래 항목/금액(단위: 백만원): 단기대여금 417, 장기대여금 1,738, 미수이자 265.",
+    "rubric": "두 가지 모두 맞아야 정답: (1) 모-자 바인딩과 방향 — 센트로이드 인베스트먼트 파트너스가 센트로이드 매니지먼트를 100% 보유(상→하). (2) 100% 선에 붙은 거래 금액 3종 — 단기대여금 417, 장기대여금 1,738, 미수이자 265(백만원). 방향을 반대로 하거나, 다른 관계회사 선의 금액을 끌어오면 오답.",
+    "agent_answer": "스텔라(센트로이드 인베스트먼트파트너스)가 100% 지분을 보유하고 있는 자회사는 센트로이드매니지먼트이며(`FDD3, page FDD3 — [STELLA] Group Structure`), 종속회사는 총 1개입니다(`FDD3, page FDD3 — [STELLA] Group Structure`).\n\n센트로이드 인베스트먼트파트너스와 자회사인 센트로이드 매니지먼트 간의 내부거래 항목 및 금액(24년 6월말 기준)은 다음과 같습니다(`FDD5, page FDD5 — [STELLA] Related Party Transaction`):\n- 단기대여금: 417백만원\n- 장기대여금: 1,738백만원\n- 미수이자: 265백만원",
+    "pages_opened": [
+      "FDD3 — [STELLA] Group Structure, FDD1 — [STELLA] Company Snapshot",
+      "FDD5 — [STELLA] Related Party Transaction"
+    ]
+  },
+  {
+    "id": "S03",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "스텔라 최초 인수 때 투자구조 보면, GP/LP가 출자한 PE 펀드부터 SPC 거쳐 타겟회사까지 돈이 어떤 순서로 흘러가? 펀드가 SPC를 몇 % 갖는지, SPC가 타겟 인수할 때 들어간 금액(억원)이랑 인수 방식(구주/신주)도 같이 알려줘.",
+    "ground_truth": "자금 흐름 경로(왼쪽 '최초 인수시점' 패널): GP·LP 출자(+대주주 후순위 출자 150억원) → 센트로이드제2호 바이아웃 PE Fund → (지분 100%) → 피터 인더스트리얼 솔루션(SPC, 인수목적법인) → 솔리드이엔지(투자대상/타겟). PE Fund는 SPC인 '피터 인더스트리얼 솔루션'을 100% 보유. SPC가 타겟 솔리드이엔지를 인수한 금액은 540억원, 인수 방식은 '구주+신주 인수'. (추가로 SPC에는 대주단 인수금융 100억원이 투입되고, 피터 인더스트리얼 솔루션과 솔리드이엔지는 빨간 점선 박스로 묶여 '합병' 표시됨.)",
+    "rubric": "정답: (1) 흐름 순서를 GP/LP→센트로이드제2호 바이아웃 PE Fund→피터 인더스트리얼 솔루션(SPC)→솔리드이엔지(타겟) 순으로 정확히 바인딩, (2) 펀드→SPC 지분 100% 명시, (3) SPC의 타겟 인수금액 540억원 + 구주+신주 방식 명시. 세 요소 모두 맞아야 완전 정답. 대주주 후순위 150억·대주단 인수금융 100억은 가점 요소.",
+    "agent_answer": "스텔라(솔리드이엔지) 최초 인수 당시 자금 흐름은 GP/LP가 출자한 센트로이드제2호바이아웃 PEF에서 SPC인 피터 인더스트리얼 솔루션을 거쳐 타겟회사인 솔리드이엔지로 이어지는 구조입니다 (`FDD14, page FDD14`).\n\n상세 내용은 다음과 같습니다.\n- **펀드의 SPC 지분율**: 센트로이드제2호 바이아웃 PE Fund는 SPC(피터 인더스트리얼 솔루션)의 지분 100%를 보유하고 있습니다 (`FDD14, page FDD14`).\n- **타겟회사 인수 금액 및 방식**: SPC는 총 540억원(`FDD14, page FDD14`)을 투입하여 솔리드이엔지를 인수하였으며, 세부적으로는 구주 500억원(`FDD14, page FDD14`)과 신주 40억원(`FDD14, page FDD14`)을 인수하는 방식을 취했습니다.\n- **기타 자금 조달**: 인수 과정에서 대주단으로부터 100억원의 인수금융을 활용하였으며 (`FDD14, page FDD14`), 대주주가 SPC에 150억원을 후순위 출자하였습니다 (`FDD14, page FDD14`).",
+    "pages_opened": [
+      "FDD14 — [STELLA] Financials | 센트로이드제2호바이아웃 [투자구조 및 주요 Terms]"
+    ]
+  },
+  {
+    "id": "S04",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "스텔라 가치평가 결론에서 DCF로 본 지분가치(Deloitte Case)랑 시장가치 접근(GPC·GTC)으로 본 거랑 차이가 많이 나? 난다면 어느 쪽이 얼마나 더 높아?",
+    "ground_truth": "DCF 방식(Deloitte Case 중심값)이 시장가치 접근보다 현저히 높음. DCF Deloitte Case ≈ 85,605백만원(856억). 시장가치 접근 중위값: GPC ≈ 47,150백만원(472억), GTC ≈ 41,873백만원(419억). DCF가 GPC의 약 1.8배, GTC의 약 2.0배 수준. (각 방법은 범위로 제시되며 위는 중심/대표값.)",
+    "rubric": "DCF가 시장가치 접근보다 높다는 방향 + 대략적 배수(약 1.8~2배) 또는 양쪽 값을 제시하면 정답. 방향만 맞고 크기 없으면 부분점수. 절대 금액 최대인 MGT Case와 혼동하면 감점(질문은 결론 방식 비교).",
+    "agent_answer": "스텔라 가치평가 결과, DCF(Deloitte Case)로 산출한 지분가치가 시장가치 접근법(GPC·GTC)으로 산출한 지분가치보다 전반적으로 더 높게 나타납니다.\n\nDCF(Deloitte Case)의 지분가치 중위값은 85,605백만 원(`FDD6, page FDD6`)이며, 시장가치 접근법(GTC)의 지분가치 중위값은 419억 원(`FDD19, page FDD19`)입니다. 두 수치를 비교하면 DCF 중위값이 시장가치 중위값보다 43,705백만 원(85,605백만 원 `FDD6, page FDD6` - 41,900백만 원 `FDD19, page FDD19`) 더 높습니다.",
+    "pages_opened": [
+      "FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD6 — [STELLA] Valuation Summary, FDD17 — [STELLA] Valuation Summary | DCF Summary",
+      "FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)"
+    ]
+  },
+  {
+    "id": "S05",
+    "doc": "STELLA",
+    "capability": "C1-binding",
+    "visual_type": "data_chart",
+    "difficulty": 4,
+    "question": "스텔라 운용펀드 규모(AUM) 전망을 Management Case랑 Deloitte Case로 비교하면, FY24~FY29 중에 어느 케이스가 매년 더 커? 그리고 두 케이스 차이가 제일 크게 벌어지는 해랑 그 차이(백만원)는?",
+    "ground_truth": "(1) 모든 연도(FY24~FY29)에서 Management Case가 Deloitte Case보다 큼. 연도별: FY24 1,552,023 vs 1,438,503 / FY25 2,946,223 vs 1,974,383 / FY26 3,738,713 vs 2,008,553 / FY27 2,549,013 vs 818,853 / FY28 4,276,063 vs 1,287,583 / FY29 4,155,200 vs 1,166,720 (단위 백만원). (2) 차이가 가장 크게 벌어지는 연도는 FY28과 FY29로 두 해 모두 차이가 동일하게 2,988,480백만원(약 2조 9,885억원). FY28=4,276,063−1,287,583, FY29=4,155,200−1,166,720 모두 2,988,480. 슬라이드 헤드라인은 '29년 기준 약 2조 9,884억원으로 명시. (참고: FY27은 양 Case 모두 빨간 점선 박스로 강조된 최저점.)",
+    "rubric": "(1) 모든 연도에서 Management Case가 더 크다고 답하면 정답. (2) 최대 차이 연도로 FY28과 FY29(동률)를 짚고 차이 2,988,480백만원(±오차 또는 약 2조 9,885억원)을 제시해야 정답. FY28 또는 FY29 중 하나만 답한 경우 부분 인정(동률임을 놓침). 차트 라벨↔연도/Case 바인딩이 맞아야 함.",
+    "agent_answer": "FY24부터 FY29까지 매년 Management Case의 운용펀드 규모(AUM) 전망치가 Deloitte Case보다 더 큽니다. 연도별 비교 수치는 다음과 같습니다.\n\n*   **FY24**: Management Case 1,552,023 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) > Deloitte Case 1,438,503 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)\n*   **FY25**: Management Case 2,946,223 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) > Deloitte Case 1,974,383 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)\n*   **FY26**: Management Case 3,738,713 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) > Deloitte Case 2,008,553 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)\n*   **FY27**: Management Case 2,549,013 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) > Deloitte Case 818,853 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)\n*   **FY28**: Management Case 4,276,063 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) > Deloitte Case 1,287,583 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)\n*   **FY29**: Management Case 4,155,200 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) > Deloitte Case 1,166,720 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)\n\n두 케이스의 차이가 가장 크게 벌어지는 해는 **FY28**이며, 그 차이는 **2,988,480백만원**입니다.\n(계산: Management Case 4,276,063 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) - Deloitte Case 1,287,583 (`FDD8, page FDD8 — [STELLA] Valuation Summary #3`) = 2,988,480)\n\n단, 감사 경고(AUDIT)에 따라 Management Case와 Deloitte Case의 수치가 동일한 출처 셀(`FDD8, page FDD8 — [STELLA] Valuation Summary #3`)에서 중복 인용되었으므로, 서로 다른 자료를 통한 정밀 대사 없이는 두 케이스의 차이가 확정적이라고 단정하기 어렵습니다.",
+    "pages_opened": [
+      "FDD8 — [STELLA] Valuation Summary #3, FDD16 — [STELLA] Valuation Summary | Fund Projection by case",
+      "FDD8 — [STELLA] Valuation Summary #3, FDD7 — [STELLA] Valuation Summary #2"
+    ]
+  },
+  {
+    "id": "S06",
+    "doc": "STELLA",
+    "capability": "C2-visualonly",
+    "visual_type": "dense_multipanel",
+    "difficulty": 3,
+    "question": "스텔라 Management Case랑 Deloitte Case 지분가치 차이에서, 투자자산 회수가치(Exit Value) 조정이 얼마나 영향 줘?(부호 포함, 백만원) 지분가치를 키워 줄여?",
+    "ground_truth": "Exit Value 조정(마커 ②) 단계의 지분가치 증감액은 -106,567백만원(차트에 (106,567)로 괄호 표기)이며, 지분가치를 감소시키는 음(-)의 조정이다. waterfall: MGT 210,835 → ① AUM 조정 -18,664 → ② Exit Value 조정 -106,567 → Deloitte Case 85,605 (백만원).",
+    "rubric": "정답은 -106,567백만원(괄호=음수/감소 인식 필수) 또는 약 -1,066억원. 부호(감소·마이너스)를 맞히고, 마커②/가장 큰 빨간 막대=Exit Value 조정 단계에 정확히 바인딩해야 정답. 부호 누락(106,567만)이나 다른 막대(-18,664)와 혼동 시 오답.",
+    "agent_answer": "스텔라 Management Case와 Deloitte Case의 지분가치 차이에서 투자자산 회수가치(Exit Value) 조정은 지분가치를 감소시키는 방향으로 영향을 주었습니다.\n\nDeloitte는 MGT Case의 EBITDA 성장률과 Multiple 가정이 높게 추정되었다고 판단하여 산업 자료를 적용해 이를 하향 조정하였으며, 이에 따라 대상회사에 유입되는 GP 성과보수와 초과재산분배액이 감소하는 결과가 도출되었습니다 (`FDD10, page FDD10 — [STELLA] Valuation Summary [Exit Value 가정 비교]`).\n\n다만, 구체적인 지분가치 조정 금액(백만원)의 경우, 제공된 evidence에 Exit Value 및 GP 성과보수 등의 개별 차이 금액(`FDD10`)과 최종 지분가치 추정치(`FDD6`, `FDD7`, `FDD15`)는 명시되어 있으나, 이들 간의 상관관계를 통해 산출된 'Exit Value 조정이 지분가치에 미친 최종 영향액'에 대한 직접적인 수치는 확인되지 않습니다.",
+    "pages_opened": [
+      "FDD10 — [STELLA] Valuation Summary [Exit Value 가정 비교]",
+      "FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD6 — [STELLA] Valuation Summary, FDD7 — [STELLA] Valuation Summary #2"
+    ]
+  },
+  {
+    "id": "S07",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "dense_multipanel",
+    "difficulty": 4,
+    "question": "스텔라 골프산업 거래배수(EV/EBITDA) 분포 보면, 상·하단 격차가 제일 컸던 해랑 제일 좁았던 해가 언제야? 그때 격차(배수)랑 각 해 상·하단 배수도 알려줘.",
+    "ground_truth": "붉은 점선 박스(2021~2023) 밴드 폭(Top Quartile − Bottom Quartile): 2021년 = 17.6x − 9.4x = 8.2x, 2022년 = 18.4x − 9.5x = 8.9x(최대 발산), 2023년 = 16.5x − 9.0x = 7.5x(최소 수렴). 가장 넓게 발산한 연도는 2022년(8.9x), 이후 가장 좁게 수렴한 연도는 2023년(7.5x). Median은 13.1x→12.9x→12.0x로 점진 하락. (모든 라벨값 이미지에서 직접 확인됨)",
+    "rubric": "2022년이 최대 발산(밴드폭 8.9x), 2023년이 최소 수렴(밴드폭 7.5x)임을 맞히고, Top/Bottom 라벨값(2022:18.4x/9.5x, 2023:16.5x/9.0x)을 차트에서 정확히 읽어 폭을 산출하면 정답. 단위(x배수)와 연도 바인딩 필수. 방향만 맞고 수치 틀리면 부분점수.",
+    "agent_answer": "스텔라 골프산업 거래배수(EV/EBITDA) 분포의 상·하단 격차가 가장 컸던 해는 2022년이며, 가장 좁았던 해는 2021년입니다.\n\n- **격차가 가장 컸던 해 (2022년):** 상단 18.4x (`FDD10, page FDD10`)와 하단 9.5x (`FDD10, page FDD10`)의 차이로, 격차는 8.9x (18.4x - 9.5x)입니다.\n- **격차가 가장 좁았던 해 (2021년):** 상단 17.6x (`FDD10, page FDD10`)와 하단 9.4x (`FDD10, page FDD10`)의 차이로, 격차는 8.2x (17.6x - 9.4x)입니다.\n\n참고로 2023년의 격차는 7.5x (상단 16.5x `FDD10, page FDD10` - 하단 9.0x `FDD10, page FDD10`)로 계산됩니다.",
+    "pages_opened": [
+      "FDD10 — [STELLA] Valuation Summary [Exit Value 가정 비교]"
+    ]
+  },
+  {
+    "id": "S08",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "heatmap_matrix",
+    "difficulty": 3,
+    "question": "스텔라 운용 펀드 중에 설정일~만기일 기준으로 제일 오래 운용되는 펀드가 뭐야? 설정 연도, 만기 연도, 존속기간(연)도 알려줘.",
+    "ground_truth": "가장 존속기간이 긴 펀드는 No.2 '센트로이드제2호바이아웃'으로, 설정일 2017년 ~ 만기일 2026년, 존속기간 9년이다. 이미지의 설정일/만기일 컬럼으로 검증한 전체 14개 펀드(본문 합산 문장은 13으로 오기): 1호 2017–2025(8년), 2호 2017–2026(9년, 최장), 3호그로쓰 2019–2024(5년), 옐로씨1호 2019–2026(7년), 5호 2021–2028(7년), 7호 2021–2026(5년), 7-1호 2021–2026(5년), 8호코인베스트 2022–2027(5년), 신규 프로젝트1호 2024–2030(6년), 신규 프로젝트2호 2025–2031(6년) 등. 최단 5년은 3호·7호·7-1호·8호 공동.",
+    "rubric": "펀드명(센트로이드제2호바이아웃/No.2)을 정확히 지목하고, 설정 2017·만기 2026·존속 9년을 모두 맞춰야 정답. 펀드명만 맞고 연도/기간 틀리면 부분점수. 단순히 '가장 긴 막대'만 지목하고 펀드 식별 실패 시 오답.",
+    "agent_answer": "스텔라가 운용하는 펀드 중 설정일과 만기일 기준 존속기간이 가장 긴 펀드는 센트로이드제2호바이아웃입니다.\n\n해당 펀드의 상세 정보는 다음과 같습니다:\n- 설정 연도: 2017년 (`FDD16, page FDD16`)\n- 만기 연도: 2026년 (`FDD16, page FDD16`)\n- 존속기간: 9년 (2026년 `FDD16, page FDD16` - 2017년 `FDD16, page FDD16` = 9년)\n\n다른 펀드들의 존속기간을 계산한 결과, 센트로이드제1호차이나(8년), 센트로이드제3호그로쓰(5년), 센트로이드PCC신기술제1호(7년), 센트로이드제5호바이아웃(7년), 센트로이드제7호바이아웃(5년), 센트로이드제7-1호바이아웃(5년), 센트로이드제8호코인베스트(5년), 신규 프로젝트 1호(6년), 신규 프로젝트 2호(6년), 신규 블라인드 1호(6년), 신규 프로젝트 3호(6년), 신규 프로젝트 4호(6년), 신규 블라인드 2호(6년)로 모두 센트로이드제2호바이아웃보다 짧습니다.",
+    "pages_opened": [
+      "FDD16 — [STELLA] Valuation Summary | Fund Projection by case"
+    ]
+  },
+  {
+    "id": "S09",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "스텔라 운용 펀드 중에 현재 기준 수익률(IRR)이 마이너스인 펀드가 있어? 있으면 어느 펀드고 IRR(%)은 얼마야?",
+    "ground_truth": "'최근기준[3]' IRR 컬럼(우측 빨간 점선 + 연분홍 음영)에서 음수(괄호 표기)인 펀드는 2개입니다. (1) 센트로이드제1호 차이나 PEF = (2.7)%, (2) 센트로이드제3호그로쓰창업벤처전문 PEF = (54.4)%. 같은 음영 블록의 나머지 3개(제2호 6.2%, 엘로씨제1호바이아웃 6.5%, 제5호 10.3%)는 양수. 즉 컬럼 값 순서는 위에서부터 (2.7)%, 6.2%, (54.4)%, 6.5%, 10.3%. 박스 아래 흰색 행(32.8%, 10.0%, 24.8% 등)은 점선 밖이라 제외.",
+    "rubric": "정답은 '최근기준' 컬럼 기준으로 음수 펀드 2개(제1호 차이나, 제3호 그로쓰창업벤처전문)를 모두 식별하고 각 수치 (2.7)%·(54.4)%를 맞춰야 함. 음영 블록 전체(제1~5호)를 음수로 오인하거나 양수 셀(6.2/6.5/10.3%)을 포함하면 오답. 다른 컬럼(투자검토시점·FY23공정가치)의 음수와 혼동해도 오답.",
+    "agent_answer": "제공된 evidence에 따르면, 스텔라(센트로이드 인베스트먼트파트너스)가 운용 중인 펀드 중 현재 기준 수익률(IRR)이 마이너스인 펀드는 없습니다. 확인된 펀드의 IRR은 센트로이드제1호 차이나 PEF가 2.7%(`FDD4, page FDD4`), 센트로이드제3호그로쓰창업벤처전문 PEF가 54.4%(`FDD4, page FDD4`)로 모두 양수입니다.",
+    "pages_opened": [
+      "FDD1 — [STELLA] Company Snapshot, FDD4 — [STELLA] Key Finding Summary"
+    ]
+  },
+  {
+    "id": "S10",
+    "doc": "STELLA",
+    "capability": "C1-binding",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "스텔라 Operating Revenue(관리보수) 전망을 Management Case랑 DTT Case로 비교하면, FY24~FY29 내내 어느 쪽이 더 커? 격차가 제일 커지는 구간은 언제고, FY28 두 케이스 값(KRWm)은 각각 얼마야?",
+    "ground_truth": "(1) 전 연도(FY24~FY29) MGT case > DTT case. (2) 격차는 시간이 갈수록 확대되어 FY28~FY29에 최대(약 36,700~36,740백만원)에 도달 — FY28 격차 36,739, FY29 격차 36,740으로 두 해가 사실상 동률. (3) FY28 total: MGT 59,137백만원, DTT 22,398백만원. (주의: DTT 16,959은 FY29 값으로 FY28과 혼동 금지.) [전 연도 MGT/DTT total — MGT 12,076/29,123/34,674/34,949/59,137/53,699, DTT 11,409/17,704/14,344/14,620/22,398/16,959]",
+    "rubric": "(1) MGT가 전 기간 우위 + (2) 격차가 FY28~FY29에서 최대(동률 인정) + (3) FY28 MGT 59,137·DTT 22,398 정확 판독. FY28 DTT를 16,959(=FY29)로 읽으면 오답. 단일 연도만 콕 집으면(특히 FY29 단정) 감점.",
+    "agent_answer": "스텔라의 FY24~FY29 기간 동안 Operating Revenue(관리보수) 전망을 비교한 결과, 전 기간에 걸쳐 Management Case가 Deloitte Case(DTT Case)보다 더 큽니다.\n\n두 케이스 간의 격차는 FY28에 가장 크게 벌어집니다. 연도별 격차 계산 결과는 다음과 같습니다.\n- FY24: 12,076 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) - 11,409 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) = 667\n- FY25: 29,123 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) - 17,704 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) = 11,419\n- FY26: 34,674 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) - 14,344 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) = 20,330\n- FY27: 34,949 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) - 14,620 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) = 20,329\n- FY28: 59,137 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) - 22,398 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) = 36,739\n- FY29: 53,699 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) - 16,959 (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`) = 36,740 (소수점 처리 등에 따라 FY28과 FY29가 유사하나, 단순 뺄셈 결과 FY29가 1 높음)\n*수정: 단순 계산 시 FY29의 격차가 36,740으로 가장 큽니다.\n\nFY28의 각 케이스별 값은 Management Case 59,137 KRWm (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`), Deloitte Case 22,398 KRWm (`FDD9, page FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)`)입니다. 다만, 해당 수치들은 동일한 출처 셀에서 중복 인용되었으므로, 서로 다른 자료를 통한 정밀 대사 없이는 두 값이 완전히 독립적으로 검증되었다고 단정할 수 없습니다.",
+    "pages_opened": [
+      "FDD9 — [STELLA] Valuation Summary [Case 비교] (2_3)"
+    ]
+  },
+  {
+    "id": "S12",
+    "doc": "STELLA",
+    "capability": "C4-reconcile",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "스텔라 손익에서 FY23 영업비용 얼마야(백만원)? 우리 엑셀 골든값(7,277.7백만원)이랑 맞는지도 봐줘.",
+    "ground_truth": "표 이미지에서 읽은 'Profit & Loss' > 영업비용 행 × FY23 열 셀 값 = 7,278 (백만원, 소수점 없이 정수로 인쇄). RAG_0604 Input Excel 골든값 7,277.7백만원과 대조하면, 7,277.7을 백만원 단위 정수로 반올림한 값이 7,278이므로 표기 정밀도만 다를 뿐 동일 수치 — 사실상 일치. (문자 그대로 '7,277.7'이 인쇄돼 있느냐로 보면 덱에는 .7이 없어 표시값은 다름.) 검증: 같은 FY23 열 영업수익 13,020(골든 13,011.8과 정합), 영업이익 5,743, EBIT% 44.1%; 영업비용 하위항목 인건비4,202+접대비819+지급수수료561+여비교통비587+지급임차료772+세금과공과82+기타254 ≈ 7,277로 셀 위치 확정. FY22=8,170, 1H24=3,980과 구분됨.",
+    "rubric": "FY23 열(1H24가 아닌 네 번째 연도 열) × 영업비용 행 셀을 정확히 바인딩해 7,278(백만원)을 읽고, 골든 7,277.7과 반올림 차이로 '일치' 판정하면 정답. 1H24(3,980)나 FY22(8,170) 셀을 잘못 읽거나, 단위/시점을 혼동하면 오답.",
+    "agent_answer": "스텔라의 FY23 영업비용은 FDD 보고서상 7,278백만원(`FDD2, page FDD2`, `FDD13, page FDD13`)이며, 엑셀 PL 시트상으로는 7,277.657백만원(`PL!J9`)입니다.\n\n엑셀 골든값인 7,277.7백만원과 비교했을 때, 엑셀 PL 시트의 수치(7,277.657백만원)는 소수점 둘째 자리에서 반올림 시 7,277.7백만원이 되어 일치하는 것으로 판단됩니다. 다만, FDD 보고서의 수치(7,278백만원)와는 약 0.3백만원의 차이가 발생합니다.",
+    "pages_opened": [
+      "FDD2 — [STELLA] Key Financial Information, FDD13 — [STELLA] Financials | 센트로이드인베스트먼트파트너스",
+      "PL"
+    ]
+  },
+  {
+    "id": "S14",
+    "doc": "STELLA",
+    "capability": "C2-visualonly",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "스텔라 출자자별 출자금액에서 제일 많이 출자한 단일 LP가 누구고 금액(억원)은 얼마야? 강조 표시된 상위 출자자도 알려줘.",
+    "ground_truth": "최대 단일 출자자(LP)는 '새마을금고'로 약 5,900억원(차트 최좌측·최고 막대, 데이터라벨 5,900). 2위는 에프앤에프 5,537억원. 녹색으로 강조된 상위 출자자는 새마을금고(5,900)와 에프앤에프(5,537) 두 곳이며, 농협중앙회(612)·더네이쳐홀딩스(300) 이하 나머지는 회색 막대. 새마을금고(5,900)는 차트에만 표시되고 본문 불릿에는 미기재.",
+    "rubric": "'새마을금고'를 최대 출자자로, 금액을 약 5,900억원으로 정확히 읽으면 정답. 녹색 강조 출자자로 새마을금고+에프앤에프 두 곳을 짚으면 가점. 본문에만 있는 에프앤에프(5,537)나 농협(612)을 최대로 답하면 오답.",
+    "agent_answer": "스텔라의 출자자별 출자금액(Jun-24 기준) 중 가장 많이 출자한 단일 LP는 새마을금고이며, 출자금액은 5,900억원(`FDD11, page FDD11`)입니다. 또한, 강조 표시된 주요 출자자는 새마을금고(5,900억원)와 에프앤에프(5,537억원)(`FDD11, page FDD11`)입니다.",
+    "pages_opened": [
+      "FDD11 — [STELLA] 출자자별 출자금액 현황"
+    ]
+  },
+  {
+    "id": "S15",
+    "doc": "STELLA",
+    "capability": "C4-reconcile",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "스텔라 센트로이드인베스트먼트파트너스 FY23 영업수익 얼마야(백만원)? 우리 PL 엑셀 골든이랑 맞아? 다르면 얼마나 차이 나고 왜 그런 거야?",
+    "ground_truth": "PDF 표 FY23 영업수익 = 13,020 (백만원). 골든 PL 엑셀 FY23 영업수익 = 13,012(정확히 13,011.82). 약 8 차이로 불일치. 원인 = 배당금수익(약 9, 정확히 8.6)의 분류 차이 — PDF는 영업수익을 관리수수료(12,412)+배당금수익(9)+자문용역수수료(600)로 잡아 배당금을 포함하고, 엑셀 골든은 배당금수익을 영업외수익(PL 시트 J45=8.6)으로 분류해 영업수익에서 제외함. 관리수수료·자문은 동일. (stella_case에 기록된 '영업수익 정의: 엑셀 배당제외 vs PDF 배당포함' 정의차가 시각 표에서 재현된 사례.)",
+    "rubric": "13,020을 읽고 엑셀 13,012와 대조해 차이(≈8)의 원인을 '배당금수익을 PDF는 영업수익 포함/엑셀은 영업외 분류'로 설명하면 정답. 단순히 '일치'라고 하면 오답. 차이 원인을 단순 반올림으로 돌리면 부분점수.",
+    "agent_answer": "스텔라 센트로이드인베스트먼트파트너스의 FY23 영업수익은 FDD 보고서 기준으로 13,020백만원(`FDD2, page FDD2`, `FDD13, page FDD13`)입니다.\n\nPL 엑셀 데이터상의 FY23 영업수익은 13,011.818백만원(`PL!J6`)으로 확인되며, 이는 FDD 보고서 수치와 8.182백만원(13,020 - 13,011.818)의 차이가 발생하여 서로 일치하지 않습니다.\n\n다만, 제공된 evidence 중 PL 엑셀 데이터의 근거로 FDD 보고서의 셀(`FDD2, page FDD2`, `FDD13, page FDD13`)이 중복 인용되어 있어, 실제 PL 엑셀의 독립적인 수치와 FDD 보고서 수치를 정밀하게 대사했는지 확인되지 않습니다. 따라서 해당 차이가 단순한 수치 불일치인지 또는 데이터 추출 과정의 오류인지에 대해서는 제공된 자료만으로 단정할 수 없습니다.",
+    "pages_opened": [
+      "FDD2 — [STELLA] Key Financial Information, FDD13 — [STELLA] Financials | 센트로이드인베스트먼트파트너스",
+      "PL, FDD13 — [STELLA] Financials | 센트로이드인베스트먼트파트너스, FDD2 — [STELLA] Key Financial Information"
+    ]
+  },
+  {
+    "id": "S16",
+    "doc": "STELLA",
+    "capability": "C4-reconcile",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "스텔라 NAV 조정 내역에서 매도가능증권 Dec-23 잔액 얼마야? 우리 BS 엑셀 매도가능자산 Dec-23이랑 맞아?",
+    "ground_truth": "매도가능증권 Dec-23 = 12,296 (백만원). 골든 BS 엑셀 매도가능자산 Dec-23 = 12,296 (BS 시트 J29). 일치(차이 0).",
+    "rubric": "12,296을 읽고 BS 엑셀과 일치 확인하면 정답. 인접 Jun-24(12,296 동일)나 Dec-22(14,006)를 Dec-23로 혼동하면 오답.",
+    "agent_answer": "스텔라 NAV 조정 내역의 매도가능증권 Dec-23 잔액은 12,296(`FDD12, page FDD12`)입니다. 이는 BS 엑셀의 매도가능자산 Dec-23 잔액인 12,296(`J29, page BS`)과 일치합니다.",
+    "pages_opened": [
+      "BS",
+      "FDD12 — [STELLA] Adjusted NAV"
+    ]
+  },
+  {
+    "id": "S17",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 4,
+    "question": "스텔라 가치평가에서 방법별(DCF Management·DCF Deloitte·GPC·GTC) 지분가치 범위 중에 최저~최고 폭이 제일 넓은 방법이 뭐고, 그 방법 최저·최고 값(백만원)은 얼마야?",
+    "ground_truth": "GPC가 범위 가장 넓음. GPC 최저 2,244(Min EV/EBITDA 2.4x) ~ 최고 132,347(Max 33.3x), 폭 ≈ 130,103 백만원. (비교 폭: Deloitte 77,659~95,841=18,182 / GTC 40,947~90,190=49,243 / MGT 193,499~232,654=39,155 → GPC가 압도적 최광.) GPC 폭이 큰 이유는 comps 배수 편차(2.4x~33.3x)가 커서이며, 그래서 p102는 Average 대신 Median을 적용(S23 연결).",
+    "rubric": "방법(GPC)과 최저·최고(2,244 / 132,347)를 맞히면 정답. 방법만 또는 값만 맞으면 부분점수. MGT(절대 금액 큼)를 범위 최광으로 답하면 오답 — 폭(스프레드)이 아니라 위치를 본 것.",
+    "agent_answer": "스텔라 가치평가 방법별 지분가치 범위(최저~최고)를 분석한 결과, 최저값과 최고값의 폭이 가장 넓은 방법은 **GPC**입니다.\n\n각 방법별 지분가치 범위 및 폭은 다음과 같습니다:\n- **GPC**: 최저 2,244백만원 (`FDD6, page FDD6`) ~ 최고 132,347백만원 (`FDD6, page FDD6`) / **폭: 130,103백만원**\n- **GTC**: 최저 40,947백만원 (`FDD6, page FDD6`) ~ 최고 90,190백만원 (`FDD6, page FDD6`) / **폭: 49,243백만원**\n- **DCF Management**: 최저 193,499백만원 (`FDD6, page FDD6`) ~ 최고 232,654백만원 (`FDD6, page FDD6`) / **폭: 39,155백만원**\n- **DCF Deloitte**: 최저 77,659백만원 (`FDD6, page FDD6`) ~ 최고 95,841백만원 (`FDD6, page FDD6`) / **폭: 18,182백만원**\n\n따라서 가장 폭이 넓은 방법인 **GPC의 최저값은 2,244백만원(`FDD6, page FDD6`), 최고값은 132,347백만원(`FDD6, page FDD6`)**입니다.",
+    "pages_opened": [
+      "FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD6 — [STELLA] Valuation Summary, FDD17 — [STELLA] Valuation Summary | DCF Summary, FDD7 — [STELLA] Valuation Summary #2",
+      "FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)"
+    ]
+  },
+  {
+    "id": "S18",
+    "doc": "STELLA",
+    "capability": "C4-reconcile",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "스텔라 NAV 조정 내역에서 장기대여금 Dec-23 잔액이랑 그거 조정액(Adj) 얼마야? Dec-23 값은 우리 BS 엑셀 장기대여금이랑 맞아?",
+    "ground_truth": "장기대여금 Dec-23 = 9,375 (백만원), Adj. 조정 = (5,463)(차감). 골든 BS 엑셀 장기대여금 Dec-23 = 9,375(정확히 9,374.72, BS 시트 30행). 일치. ※엑셀에서 Dec-20이 col7부터 시작해 Dec-23은 col10 — 한 칸 밀려 col9(Dec-22=3,619)로 오독하기 쉬우니 주의.",
+    "rubric": "Dec-23 9,375 + Adj (5,463)을 읽고 BS와 일치 확인하면 정답. Dec-22 3,619를 Dec-23로 잘못 읽으면 오답(컬럼 정렬 주의).",
+    "agent_answer": "스텔라 NAV 조정 내역상 장기대여금의 Dec-23 잔액은 9,375(`FDD12, page FDD12 — [STELLA] Adjusted NAV`)이며, 조정액(Adj. Jun-24)은 (5,463)`FDD12, page FDD12 — [STELLA] Adjusted NAV`입니다.\n\nDec-23 잔액의 경우, BS 엑셀의 장기대여금 잔액인 9,374.7174(`J30, page BS`)와 비교했을 때 수치상으로 거의 일치하나, 소수점 처리 차이로 인해 완전히 동일하지는 않습니다.",
+    "pages_opened": [
+      "BS",
+      "FDD12 — [STELLA] Adjusted NAV"
+    ]
+  },
+  {
+    "id": "S19",
+    "doc": "STELLA",
+    "capability": "C1-binding",
+    "visual_type": "heatmap_matrix",
+    "difficulty": 3,
+    "question": "스텔라 Deloitte Case DCF에서 WACC 15.5%, 영구성장률 1.0%로 잡으면 지분가치(백만원) 얼마야?",
+    "ground_truth": "85,605 (KRWm). WACC 15.5% 열 × PGR 1.0% 행 교차 셀. 음영 처리된 base case 셀이며 본문의 '약 856억원' 및 DCF Summary의 Equity Value 85,605와 일치.",
+    "rubric": "85,605을 정확히 짚으면 정답. 인접 셀(90,374=14.5%, 81,401=16.5%, 84,303=PGR0.5%)을 답하면 오답. 행·열 교차 바인딩이 핵심.",
+    "agent_answer": "스텔라 Deloitte Case DCF 민감도 분석 결과, WACC 15.5% 및 영구성장률(PGR) 1.0% 조건에서의 지분가치는 85,605백만원(`FDD17, page FDD17`)입니다.",
+    "pages_opened": [
+      "FDD17 — [STELLA] Valuation Summary | DCF Summary"
+    ]
+  },
+  {
+    "id": "S20",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "heatmap_matrix",
+    "difficulty": 3,
+    "question": "스텔라 Deloitte Case DCF에서 영구성장률 1.0% 고정하고 WACC를 13.5%에서 17.5%까지 올리면 지분가치 늘어 줄어? 양 끝값(WACC 13.5%·17.5%)도 알려줘.",
+    "ground_truth": "감소(단조 감소). WACC 13.5% → 95,841, WACC 17.5% → 77,659 (KRWm). 중간: 14.5% 90,374 / 15.5% 85,605 / 16.5% 81,401. WACC(할인율)가 오를수록 가치 하락.",
+    "rubric": "방향(감소)과 양 끝값(95,841·77,659)을 맞히면 정답. 방향만 맞고 값 틀리면 부분점수. 방향을 '증가'로 답하면 오답.",
+    "agent_answer": "스텔라 Deloitte Case DCF에서 영구성장률을 1.0%로 고정했을 때, WACC가 13.5%에서 17.5%로 상승하면 지분가치는 감소합니다.\n\nWACC 13.5%일 때의 지분가치는 95,841(`FDD17, page FDD17 — [STELLA] Valuation Summary | DCF Summary`)이며, WACC 17.5%일 때의 지분가치는 77,659(`FDD17, page FDD17 — [STELLA] Valuation Summary | DCF Summary`)입니다.",
+    "pages_opened": [
+      "FDD17 — [STELLA] Valuation Summary | DCF Summary, FDD8 — [CAESAR] Valuation | WACC"
+    ]
+  },
+  {
+    "id": "S21",
+    "doc": "STELLA",
+    "capability": "C2-visualonly",
+    "visual_type": "heatmap_matrix",
+    "difficulty": 3,
+    "question": "스텔라 Deloitte Case DCF 민감도에서 지분가치가 제일 커지는 WACC·성장률 조합이 뭐고 그 값(백만원)은 얼마야?",
+    "ground_truth": "WACC 13.5% · PGR 2.0% 조합, 100,006 (KRWm). grid 좌하단 코너(WACC 최저·PGR 최고)에서 극대, 표 내 유일한 6자리(10만대) 값.",
+    "rubric": "조합(WACC 13.5%/PGR 2.0%)과 값(100,006)을 맞히면 정답. 값만 또는 위치만 맞으면 부분점수.",
+    "agent_answer": "스텔라 Deloitte Case DCF 민감도 분석 결과, 지분가치가 가장 커지는 WACC와 성장률(PGR)의 조합은 WACC 13.5%(`FDD17!FDD17`) 및 PGR 2.0%(`FDD17!FDD17`)이며, 이때의 지분가치는 100,006백만원(`FDD17!FDD17`)입니다.",
+    "pages_opened": [
+      "FDD17 — [STELLA] Valuation Summary | DCF Summary"
+    ]
+  },
+  {
+    "id": "S22",
+    "doc": "STELLA",
+    "capability": "C1-binding",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "스텔라 상장사 비교(GPC)에서 EV/EBITDA 배수 제일 낮은 회사가 어디고 몇 배야?",
+    "ground_truth": "Q Capital Partners, 2.4x. (EV/EBITDA 열: AJU 23.5x / Mirae 33.3x / Q Capital 2.4x / Stonebridge 9.3x / SV 36.4x / STIC 7.6x / SBI 16.7x → 최저 Q Capital 2.4x, 하단 Min 통계행 2.4x와 일치.)",
+    "rubric": "회사명(Q Capital Partners)과 값(2.4x) 모두 맞히면 정답. SV(36.4x)/Mirae(33.3x) 같은 최고치를 답하면 오답.",
+    "agent_answer": "스텔라 상장사 비교(GPC) 데이터에서 EV/EBITDA 배수가 가장 낮은 회사는 Q Capital Partners(`FDD18, page FDD18 — [STELLA] 페이지 18`)이며, 해당 배수는 2.4x(`FDD18, page FDD18 — [STELLA] 페이지 18`)입니다.",
+    "pages_opened": [
+      "FDD18 — [STELLA] 페이지 18"
+    ]
+  },
+  {
+    "id": "S23",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "스텔라 상장사 비교(GPC) 배수 통계에서 이상치라고 빠진 것 같은 회사가 있어? 있으면 어디고, 뭘 보고 빠졌다고 판단했어?",
+    "ground_truth": "SV Investment EV/EBITDA = 36.4x. Max 통계행 EV/EBITDA = 33.3x(= Mirae Asset). SV(36.4x)가 Max(33.3x)보다 큼에도 반영 안 됨. 이유: SV 행이 회색 음영+빗금 배경+이탤릭으로 처리돼 통계(Max/Min/Median/Average) 계산에서 제외된 행이기 때문. (SV는 PER 339.5x 등 극단적 outlier — 미미한 이익으로 배수가 비정상 부풀려져 comps 왜곡 방지차 제외된 것으로 추론.)",
+    "rubric": "SV 36.4x > Max 33.3x를 짚고, SV 행의 음영/제외 표식을 근거로 '통계에서 제외돼서'를 설명하면 정답. 단순히 '오류'라거나 음영 표식을 못 보고 설명 못 하면 오답/부분.",
+    "agent_answer": "스텔라 상장사 비교(GPC) 배수 통계에서 이상치(Outliers)로 제외된 구체적인 회사 명단은 제공된 evidence에서 확인되지 않습니다 (`FDD19, page FDD19`). 다만, EV/EBITDA의 Min/Max 편차가 크다는 점을 근거로 Equity Value 산출 시 평균 대신 중앙값(Median 11.8x)을 적용하였다는 사유가 명시되어 있습니다 (`FDD19, page FDD19`).",
+    "pages_opened": [
+      "FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD6 — [STELLA] Valuation Summary",
+      "FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)"
+    ]
+  },
+  {
+    "id": "S24",
+    "doc": "STELLA",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "스텔라 거래사례 비교(GTC)에서 EV/EBITDA 배수가 마이너스로 찍힌 거래 다 찾아서 회사명이랑 값 알려줘.",
+    "ground_truth": "3건: Plutus Investment Co.,Ltd (2023-12-07) (10.4x) / Neoplux Co.,Ltd(현 신한벤처투자) (2020-11-13) (16.3x) / Neoplux Co.,Ltd(현 신한벤처투자) (2020-08-19) (9.8x). 모두 괄호 표기=음수. (Neoplux는 동일 회사명 별도 2거래.) L&S Venture Capital은 'n/a'로 음수와 구분.",
+    "rubric": "3건 모두 식별하면 정답. n/a(L&S)를 음수에 포함하거나 일부 누락하면 부분/오답. Neoplux 2건을 1건으로 합치면 부분.",
+    "agent_answer": "스텔라 거래사례 비교(GTC) 데이터에서 EV/EBITDA 배수가 마이너스(음수)로 기록된 거래는 다음과 같습니다.\n\n*   Plutus Investment Co.,Ltd: (10.4x) (`FDD19, page FDD19`)\n*   Neoplux Co., Ltd. (현 신한벤처투자) (2020-11-13 거래): (16.3x) (`FDD19, page FDD19`)\n*   Neoplux Co., Ltd. (현 신한벤처투자) (2020-08-19 거래): (9.8x) (`FDD19, page FDD19`)",
+    "pages_opened": [
+      "FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)",
+      "FDD6 — [STELLA] Valuation Summary, FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD18 — [STELLA] 페이지 18",
+      "FDD7 — [STELLA] Valuation Summary #2, FDD8 — [STELLA] Valuation Summary #3, FDD10 — [STELLA] Valuation Summary [Exit Value 가정 비교]"
+    ]
+  },
+  {
+    "id": "S25",
+    "doc": "STELLA",
+    "capability": "C5-honesty",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "스텔라 상장사 비교(GPC)에 대상회사(센트로이드) 자기 EV/EBITDA 배수는 몇 배로 나와 있어?",
+    "ground_truth": "표에 대상회사 자체의 EV/EBITDA 행/값은 없음 — GPC 표는 상장 peer 7개사와 통계행만으로 구성. (대상회사엔 통계 Median 13.0x를 적용하지만, 표에 '대상회사 배수'로 적힌 값은 없음.) 정답은 '표에 없다'는 정직한 답변.",
+    "rubric": "'표에 대상회사 자체 배수는 없다'고 답하면 정답. 평균 18.5x나 Median 13.0x를 '대상회사 배수'로 단정하면 오답(환각). Median을 '적용 후보'로 언급하며 표엔 없다고 하면 가점.",
+    "agent_answer": "스텔라 상장사 비교(GPC) 방식에 따른 센트로이드 인베스트먼트파트너스의 EV/EBITDA 배수는 중앙값(Median) 기준 13.0x(`FDD15, page FDD15` 또는 `FDD18, page FDD18`), 최소값(Min) 기준 2.4x(`FDD15, page FDD15` 또는 `FDD18, page FDD18`), 최대값(Max) 기준 33.3x(`FDD15, page FDD15` 또는 `FDD18, page FDD18`)로 나타나 있으며, 평균값(Average)은 15.5x(`FDD18, page FDD18`)입니다.",
+    "pages_opened": [
+      "FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD18 — [STELLA] 페이지 18"
+    ]
+  },
+  {
+    "id": "S26",
+    "doc": "STELLA",
+    "capability": "C5-honesty",
+    "visual_type": "heatmap_matrix",
+    "difficulty": 3,
+    "question": "스텔라 Deloitte Case DCF에서 WACC 15.5%, 성장률 2.5%면 지분가치 얼마야?",
+    "ground_truth": "답할 수 없음 — 표의 PGR 축은 0.0%/0.5%/1.0%/1.5%/2.0% 5개 행만 있고 PGR 2.5% 행은 존재하지 않음. 외삽·추정하지 않고 '표에 해당 행 없음'을 정직히 답하는 것이 정답.",
+    "rubric": "'PGR 2.5% 행이 표에 없어 값을 알 수 없다'고 답하면 정답. 임의 숫자를 외삽·날조하면 오답(환각).",
+    "agent_answer": "스텔라 Deloitte Case DCF의 WACC 15.5% 및 성장률 2.5% 조건에 해당하는 지분가치 수치는 제공된 데이터에서 근거를 수집하지 못하여 확인되지 않습니다.",
+    "pages_opened": [
+      "FDD17 — [STELLA] Valuation Summary | DCF Summary",
+      "FDD6 — [STELLA] Valuation Summary"
+    ]
+  },
+  {
+    "id": "S27",
+    "doc": "STELLA",
+    "capability": "C1-binding",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "스텔라 조직에서 대표이사 직속 부문이 몇 개야? 그중에 인원 제일 많은 부문이랑 인원수도 알려줘.",
+    "ground_truth": "대표이사 직속 부문 5개: 투자본부(10명)·포트폴리오 운영본부(6명)·부동산 투자자문(3인)·준법감시팀(2인)·경영관리본부(3인). 인원 최다 = 투자본부 10명(2위 포트폴리오 운영본부 6명과 명확한 격차). 5개 부문 합 24명.",
+    "rubric": "부문 5개 + 최다 투자본부 10명을 맞히면 정답. 부문 수만/최다만 맞으면 부분. 조직도(24.8월) 합 24명을 개요의 '임직원 29명(24.1월)'과 혼동하면 안 됨(시점·집계 다름).",
+    "agent_answer": "스텔라 조직의 대표이사 직속 부문은 경영관리, 투자본부, 준법감시, 포트폴리오운영본부, 부동산투자의 총 5개 부문입니다(`임직원 수!C52`~`임직원 수!C56`).\n\n2024년 8월 기준으로 인원이 가장 많은 부문은 투자본부이며, 인원수는 10명입니다(`FDD1, page FDD1 — [STELLA] Company Snapshot`).",
+    "pages_opened": [
+      "임직원 수",
+      "임직원 수, FDD1 — [STELLA] Company Snapshot"
+    ]
+  },
+  {
+    "id": "S28",
+    "doc": "STELLA",
+    "capability": "C2-visualonly",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "스텔라 거래사례 비교(GTC)에서 거래금액(Deal Value) 제일 큰 거래가 어느 회사(공시일 포함)고 금액은 얼마야? (Equity Value나 EV 말고 Deal Value)",
+    "ground_truth": "Woori Venture Partners Co., Ltd (공시일 2023-01-17), Deal Value = 212,490 (KRWm). 9개 거래 Deal Value 중 최대(2위 114,530도 Woori 2023-05-26).",
+    "rubric": "회사(Woori, 2023-01-17)와 212,490을 맞히면 정답. Equity Value(이 행 408,635)나 EV를 답하면 오답(컬럼 혼동). 동일사명 다른 거래(2023-05-26 114,530)와 혼동하면 부분.",
+    "agent_answer": "스텔라 거래사례 비교(GTC)에서 거래금액(Deal Value)이 가장 큰 거래는 Woori Venture Partners Co., Ltd(`FDD19, page FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)`)이며, 공시일은 2023-01-17(`FDD19, page FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)`), 거래금액은 212,490백만 원(`FDD19, page FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)`)입니다.",
+    "pages_opened": [
+      "FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)",
+      "FDD6 — [STELLA] Valuation Summary, FDD15 — [STELLA] Valuation Summary | Valuation Results (1_2), FDD19 — [STELLA] Valuation Summary | GTC(Transaction Multiple)"
+    ]
+  },
+  {
+    "id": "S29",
+    "doc": "STELLA",
+    "capability": "C4-reconcile",
+    "visual_type": "structure_diagram",
+    "difficulty": 4,
+    "question": "스텔라 조직 부문별 인원(2024년 8월)을 우리 임직원수 엑셀 연도별 재직인원수(2024년 8월)랑 맞춰보면 총원이랑 부문별 인원 맞아?",
+    "ground_truth": "총 25명으로 일치. PDF 조직도(24.8월): 대표이사 1 + 투자본부 10 + 포트폴리오운영본부 6 + 부동산투자자문 3 + 준법감시팀 2 + 경영관리본부 3 = 25. 골든 임직원수 엑셀 '연도별 재직인원수' 표(B70~, H열=2024년 8월): 대표이사 1·투자본부 10·포트폴리오운영본부 6·법무(준법감시) 2·관리본부(경영관리) 3·부동산 3, 총계 H104=25. 부문 명칭이 일부 다르나(부동산투자자문↔부동산, 준법감시팀↔법무, 경영관리본부↔관리본부) 부문별 인원·총원 모두 일치.",
+    "rubric": "총 25명 일치를 확인하고, 부문별 매핑(명칭차 흡수: 부동산투자자문=부동산, 준법감시팀=법무, 경영관리본부=관리본부)까지 맞으면 정답. 총원만 맞으면 부분. 개요 패널의 '29명(24.1월)'을 8월 기준 비교에 끌어오면 감점(시점 혼동).",
+    "agent_answer": "2024년 8월 기준 스텔라의 조직 부문별 인원과 총원을 보고서(FDD)와 임직원 수 엑셀 데이터를 비교한 결과, 총원 및 대부분의 부문별 인원이 일치하지 않습니다.\n\n상세 비교 결과는 다음과 같습니다.\n\n1. **총원**: 보고서(FDD)상 총원은 25명(`FDD1, page FDD1`)이나, 엑셀 데이터의 평균 총원은 22.8333명(`G57, page 임직원 수`)으로 서로 다릅니다.\n2. **부문별 인원**:\n   - **투자본부**: 보고서 10명(`FDD1, page FDD1`) vs 엑셀 9.5명(`G53, page 임직원 수`)으로 불일치합니다.\n   - **포트폴리오 운영본부**: 보고서 6명(`FDD1, page FDD1`) vs 엑셀 5.5명(`G55, page 임직원 수`)으로 불일치합니다.\n   - **부동산 투자자문/투자**: 보고서 3인(`FDD1, page FDD1`) vs 엑셀 1.3333명(`G56, page 임직원 수`)으로 불일치합니다.\n   - **경영관리 본부**: 보고서 3인(`FDD1, page FDD1`) vs 엑셀 3.5명(`G52, page 임직원 수`)으로 불일치합니다.\n   - **준법감시팀**: 보고서 2인(`FDD1, page FDD1`)과 엑셀 2명(`G54, page 임직원 수`)은 일치합니다.\n\n결론적으로 준법감시팀을 제외한 총원 및 모든 부문별 인원이 두 자료 간에 일치하지 않습니다.",
+    "pages_opened": [
+      "임직원 수",
+      "임직원 수, FDD1 — [STELLA] Company Snapshot",
+      "임직원 수, FDD10 — [LIFE] 회사 조직도"
+    ]
+  },
+  {
+    "id": "S30",
+    "doc": "STELLA",
+    "capability": "C4-reconcile",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "스텔라에서 추정기간 동안 운용하는 펀드가 총 몇 개로 잡혀 있어? 본문 설명 개수랑 실제 펀드 목록이 서로 맞아?",
+    "ground_truth": "맞지 않음(본문 내부 합산 오류). 본문은 '운용 중인 펀드 8개 + 신규 펀드 총 6개(프로젝트 4 + 블라인드 2)'를 들면서 '총 13개'라고 서술하나, 8+6=14이고 펀드 목록 표도 No.1~No.14로 14개다. 즉 구성요소(8·6)와 표는 14개로 일관되며 '총 13개'라는 합계 표현만 오기. → 정답: 실제 14개, 본문 '13개'는 오류.",
+    "rubric": "'총 13개'라는 본문과 실제(8+6=14, 표 14행)가 불일치하며 실제는 14개임을 짚으면 정답. 본문 '13개'를 그대로 받아들이면 오답(불일치 감지 실패). 14개만 답하고 본문 오기 지적 없으면 부분.",
+    "agent_answer": "스텔라의 보고서 본문에서 추정기간 동안 운용하는 총 펀드 수는 13개(`FDD16, page FDD16`)로 명시되어 있습니다.\n\n본문 설명 개수와 실제 펀드 목록의 일치 여부를 확인한 결과는 다음과 같습니다.\n실제 펀드 목록의 총 개수는 17개(`FDD16, page FDD16`)로 파악되어, 본문에서 명시한 13개(`FDD16, page FDD16`)와 서로 일치하지 않습니다.\n\n다만, 본문 설명 수치(13개)와 실제 목록 수치(17개)가 모두 동일한 출처 셀(`FDD16, page FDD16`)에서 인용되었으므로, 서로 다른 자료를 통해 정밀하게 대사한 것이 아니며 한쪽 출처가 실제와 다르게 확인되었을 가능성이 있어 단정적인 결론을 내리기 어렵습니다.",
+    "pages_opened": [
+      "FDD16 — [STELLA] Valuation Summary | Fund Projection by case",
+      "FDD16 — [STELLA] Valuation Summary | Fund Projection by case, FDD11 — [STELLA] 출자자별 출자금액 현황"
+    ]
+  },
+  {
+    "id": "L01",
+    "doc": "LIFE",
+    "capability": "C2-visualonly",
+    "visual_type": "data_chart",
+    "difficulty": 4,
+    "question": "라이프 대상 생보사 13회차 유지율이 업계평균을 처음 추월하는 게 몇 년도야? 그때 대상사랑 업계 유지율(%)도 같이 알려줘.",
+    "ground_truth": "교차 연도는 2022년. 범례 바인딩: 13회(대상사)=주황색 선, 13회(업계)=검정(짙은 회색) 선. 13회차 유지율 연도별 값 — 대상사(주황): 2021 81.1% → 2022 83.9% → 2023 87.4% → 2024 89.3% → 2025 90.5%; 업계(검정): 2021 82.1% → 2022 83.7% → 2023 81.8% → 2024 87.8% → 2025 87.0%. 2021년에는 대상사 81.1% < 업계 82.1%로 대상사가 아래였으나, 2022년에 대상사 83.9% > 업계 83.7%로 대상사가 업계평균을 처음으로 상회하기 시작하며, 이후 2023~2025년 내내 대상사가 업계를 상회. 교차 시점 값은 대상사 83.9% vs 업계 83.7%.",
+    "rubric": "정답: 교차 연도 '2022년'을 맞추면 정답. 부분 가점 요소: (1) 대상사=주황색 선이라는 범례 바인딩 명시, (2) 교차 시점 값 대상사 83.9% > 업계 83.7% 제시. 색-계열 바인딩을 틀려 대상사를 검정 선으로 읽으면 오답.",
+    "agent_answer": "라이프 대상 생보사(KDB생명)의 13회차 유지율이 업계 평균을 처음으로 추월한 연도는 2022년입니다.\n\n연도별 비교 결과는 다음과 같습니다:\n- 2021년: KDB 81.1% (`FDD7, page FDD7`) < 업계 82.1% (`FDD7, page FDD7`)\n- 2022년: KDB 83.9% (`FDD7, page FDD7`) > 업계 83.7% (`FDD7, page FDD7`)로 처음 추월\n\n따라서 2022년 당시 대상사의 유지율은 83.9% (`FDD7, page FDD7`)이며, 업계 유지율은 83.7% (`FDD7, page FDD7`)입니다.",
+    "pages_opened": [
+      "FDD4 — [LIFE] KDB생명보험 개요",
+      "FDD7 — [LIFE] 보험영업 경영지표"
+    ]
+  },
+  {
+    "id": "L02",
+    "doc": "LIFE",
+    "capability": "C2-visualonly",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "라이프 대상 생보사 CSM이 FY2025에 줄었던데, 기말 CSM 제일 크게 깎은 요인이 뭐고 크기(억원)는? 다른 감소 요인도 있으면 알려줘.",
+    "ground_truth": "가장 큰 음의 단계는 'CSM 조정'으로 -2,854억원, 또 다른 음의 단계는 'CSM 상각'으로 -688억원. 전체 흐름: 기초 8,650 → 보장성 +1,370 → 저축성 +404 → 변액 +564 → 이자부리 +283 → CSM 조정 -2,854 → CSM 상각 -688 → 기말 7,730. 음의 단계는 이 둘뿐이며 CSM 조정이 가장 큰 감소 요인.",
+    "rubric": "가장 큰 음의 단계를 'CSM 조정'으로 식별하고 크기 -2,854억원(부호·단위 포함)을 맞히면 정답. 두 번째 음의 단계 'CSM 상각' -688억원까지 맞히면 완전 정답. 항목명을 다른 (+)단계와 혼동하거나 크기를 틀리면 오답.",
+    "agent_answer": "KDB생명보험의 FY2025 기말 CSM을 가장 크게 감소시킨 요인은 CSM 조정이며, 그 크기는 -2,854억원(`FDD8!FDD8`)입니다. 그 외의 감소 요인으로는 CSM 상각 -688억원(`FDD8!FDD8`)이 있습니다.",
+    "pages_opened": [
+      "FDD8 — [LIFE] 보험계약부채 | 잔여보장-보험계약마진(CSM) 현황"
+    ]
+  },
+  {
+    "id": "L03",
+    "doc": "LIFE",
+    "capability": "C1-binding",
+    "visual_type": "data_chart",
+    "difficulty": 4,
+    "question": "라이프 대상 생보사 월납초회보험료에서 2023년 대비 2025년에 절대 증가폭(십억원)이 제일 큰 상품군이 어디야? 그 2023·2025 값이랑 증가폭도 알려줘.",
+    "ground_truth": "생존보험(연금형). 2023년 0.4십억원 → 2025년 4.2십억원, 절대 증가폭 +3.8십억원으로 5개 상품군 중 최대 증가. (비교: 변액계정 6.7→7.8 = +1.1, 단체보험 0.1→0.6 = +0.5, 생사혼합 0.2→0.3 = +0.1, 상해·사망/보장성 16.6→11.0 = −5.6 감소.) 이미지 라벨로 모두 확인됨.",
+    "rubric": "정답은 '생존보험(연금형)'이며 2023=0.4, 2025=4.2, 증가폭 +3.8십억원을 모두 맞춰야 함. 절대값이 가장 큰 상해·사망(보장성)을 답하면 오답(감소함). 상품군 열↔차트 위치 바인딩과 증가폭 계산이 핵심.",
+    "agent_answer": "2023년 대비 2025년 월납초회보험료의 절대 증가폭이 가장 큰 상품군은 생존보험(연금형)입니다.\n\n상품군별 증가폭 계산 결과는 다음과 같습니다:\n- 생존보험(연금형): 4.2 (`FDD5!FDD5`) - 0.4 (`FDD5!FDD5`) = 3.8십억원 증가\n- 변액보험: 7.8 (`FDD5!FDD5`) - 6.7 (`FDD5!FDD5`) = 1.1십억원 증가\n- 단체보험(보장성 위주): 0.6 (`FDD5!FDD5`) - 0.1 (`FDD5!FDD5`) = 0.5십억원 증가\n- 생사혼합보험(저축성): 0.3 (`FDD5!FDD5`) - 0.2 (`FDD5!FDD5`) = 0.1십억원 증가\n- 상해·사망보험(보장성): 11.0 (`FDD5!FDD5`) - 16.6 (`FDD5!FDD5`) = -5.6십억원 (감소)\n\n따라서 가장 큰 증가폭을 기록한 생존보험(연금형)의 2023년 값은 0.4십억원(`FDD5!FDD5`), 2025년 값은 4.2십억원(`FDD5!FDD5`)이며, 증가폭은 3.8십억원입니다.",
+    "pages_opened": [
+      "FDD5 — [LIFE] 사업영역 현황(1_2)"
+    ]
+  },
+  {
+    "id": "L04",
+    "doc": "LIFE",
+    "capability": "C2-visualonly",
+    "visual_type": "dense_multipanel",
+    "difficulty": 3,
+    "question": "라이프 대상 생보사 보험 종목별 수입보험료('25 기준)에서 비중 제일 큰 종목이 뭐고 몇 %야? 그 종목 2021~2025 CAGR(%)도 알려줘.",
+    "ground_truth": "가장 큰 비중 종목은 '사망'(주황색 최대 조각)으로 도넛차트('25 기준) 라벨상 66.2%(나머지 단체 16.1%, 생사혼합 11.3%, 생존 5.8%, 특별계정 0.6%). 해당 사망 종목의 오른쪽 막대차트 2021~2025년 CAGR은 1.14%(양끝 값 1,277 → 1,336, 단위 십억원).",
+    "rubric": "사망(종목)을 최대 비중으로 식별하고 도넛 라벨값 66.2%(또는 약 66%)를 답하고, 막대차트의 사망 CAGR 1.14%를 함께 제시하면 정답. 색상-범례 바인딩(주황=사망)과 차트에만 있는 CAGR 값을 읽어야 함.",
+    "agent_answer": "2025년 기준 KDB생명보험의 보험 종목별 수입보험료 비중이 가장 큰 종목은 사망보험이며, 비중은 66.2%(`FDD6, page FDD6 — [LIFE] 사업영역 현황(2_2)`)입니다. 해당 종목의 2021년부터 2025년까지의 CAGR은 1.14%(`FDD6, page FDD6 — [LIFE] 사업영역 현황(2_2)`)입니다.",
+    "pages_opened": [
+      "FDD5 — [LIFE] 사업영역 현황(1_2), FDD6 — [LIFE] 사업영역 현황(2_2)",
+      "FDD6 — [LIFE] 사업영역 현황(2_2), FDD5 — [LIFE] 사업영역 현황(1_2)"
+    ]
+  },
+  {
+    "id": "L05",
+    "doc": "LIFE",
+    "capability": "C3-structural",
+    "visual_type": "dense_multipanel",
+    "difficulty": 3,
+    "question": "라이프 대상 생보사가 보장성보험이랑 저축성보험에서 각각 업계 몇 위야? 두 부문 수입보험료('25, 십억원)가 업계 평균보다 위야 아래야?",
+    "ground_truth": "대상회사('25 기준, 단위 십억원): 보장성보험 업계 13위, 수입보험료 1,336십억원으로 업계평균 2,777십억원의 약 절반 → 평균 이하. 저축성보험 업계 11위, 297십억원으로 업계평균 1,012십억원의 약 1/3 → 평균 이하. 두 부문 모두 대상사 막대 길이(수입보험료)가 상위사(상위사1·상위사2·상위사3 등) 및 업계평균선보다 현저히 짧아 평균에 크게 못 미친다.",
+    "rubric": "보장성 13위·저축성 11위를 각 부문에 정확히 바인딩하고, 두 부문 모두 대상사 수입보험료가 업계평균(보장성 2,777 / 저축성 1,012) 아래임을 막대 길이 비교로 맞히면 정답. 순위 부문 뒤바꿈이나 평균 위/아래 오판 시 오답.",
+    "agent_answer": "라이프 대상 생보사인 KDB생명의 2025년 업계 순위는 보장성보험 13위(`FDD3!FDD3`), 저축성보험 11위(`FDD3!FDD3`)입니다.\n\n2025년 수입보험료와 업계 평균을 비교한 결과는 다음과 같습니다.\n- 보장성보험: KDB생명의 수입보험료 641십억원(`FDD4!FDD4`)은 업계 평균인 2,777십억원(`FDD3!FDD3`)보다 아래입니다.\n- 저축성보험: KDB생명의 수입보험료 1,377십억원(`FDD4!FDD4`)은 업계 평균인 1,012십억원(`FDD3!FDD3`)보다 위입니다.",
+    "pages_opened": [
+      "FDD3 — [LIFE] 국내 생명보험산업 경쟁사 현황",
+      "FDD4 — [LIFE] KDB생명보험 개요",
+      "FDD5 — [LIFE] 사업영역 현황(1_2), FDD6 — [LIFE] 사업영역 현황(2_2), FDD4 — [LIFE] KDB생명보험 개요"
+    ]
+  },
+  {
+    "id": "L06",
+    "doc": "LIFE",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "라이프 대상 생보사 조직에서 CRO/선임계리사가 맡는 위험관리·계리부문 직속 팀이 정확히 몇 개고 각각 뭐야?",
+    "ground_truth": "5개 팀: 리스크관리팀, 투자심사팀, 계리모델팀, 계리결산팀, 선임계리사지원팀. (CRO/선임계리사 '위험관리/계리부문' 53명 직속 커넥터 버스에 연결된 5개 박스로 확인됨. 왼쪽 자산운용부문(25명)은 별도 버스로 투자기획팀·유가증권팀·대체투자팀 3개와 연결.)",
+    "rubric": "팀 수 5개를 맞히고(필수), 5개 팀명을 위험관리/계리부문 연결선에 정확히 바인딩해야 정답. 자산운용부문 산하 팀(투자기획/유가증권/대체투자)을 섞으면 오답.",
+    "agent_answer": "라이프 대상 생보사 조직에서 CRO/선임계리사가 담당하는 위험관리 및 계리부문 산하의 직속 팀은 리스크관리팀(`FDD10, page FDD10 — [LIFE] 회사 조직도`) 1개입니다.",
+    "pages_opened": [
+      "FDD10 — [LIFE] 회사 조직도"
+    ]
+  },
+  {
+    "id": "L07",
+    "doc": "LIFE",
+    "capability": "C2-visualonly",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "라이프 자료 국내 생보사 거래사례 중에 PBR 배수 제일 높았던 딜이 언제(연·월) 어느 회사 건이야? 그때 PBR이랑 인수자도 알려줘.",
+    "ground_truth": "2018.9 ε생명 거래, PBR 1.08배(타임라인 거래사례 밴드의 8개 PBR 라벨 중 최고). Seller는 매도PE, Buyer(인수자)는 금융지주A. (다른 컬럼: 2014.6 α생명 0.38, 2015.9 β생명 0.92, 2015.12 γ생명 0.87, 2017.5 δ생명 0.56, 2020.4 ζ생명 0.78, 2025.5 β생명 0.6, 2025.5 η생명 0.3 — 모두 1.08보다 낮음.)",
+    "rubric": "8개 거래사례 PBR 라벨을 비교해 최댓값(1.08배)을 가진 컬럼을 식별하고, 그 컬럼의 연월(2018.9)·대상사(ε생명)·Buyer(금융지주A)를 공간 바인딩으로 정확히 읽으면 정답. 연도·딜명·인수자·PBR 중 인수자(금융지주A)와 1.08배를 맞추는 것이 핵심.",
+    "agent_answer": "국내 생보사 거래사례 중 PBR 배수가 가장 높았던 딜은 2018년 9월(`FDD1, page FDD1`)의 오렌지라이프(`FDD1, page FDD1`) 건이며, 당시 PBR은 1.08배(`FDD1, page FDD1`)였고 인수자는 신한금융(`FDD1, page FDD1`)입니다.",
+    "pages_opened": [
+      "FDD1 — [LIFE] 1. 높은 진입장벽을 보유한 생명보험업 분야로의 진출이 가능한 희소한 M&A 기회"
+    ]
+  },
+  {
+    "id": "L08",
+    "doc": "LIFE",
+    "capability": "C4-reconcile",
+    "visual_type": "dense_multipanel",
+    "difficulty": 4,
+    "question": "라이프 대상 생보사에서 최근(FY23→FY25) 외형(수입보험료, 특히 저축성)이랑 수익성(영업이익률) 방향이 서로 엇갈려? 각각 수치로 확인하고 한 문장으로 정리해줘.",
+    "ground_truth": "상충(divergence). 왼쪽 '수입보험료' 패널의 저축성보험료(연한 주황 막대)는 FY23 1,266 → FY24 1,373 → FY25 1,377로 증가(저축성 비중 61.7%→66.0%→68.2% 동반 상승)하는 반면, 오른쪽 '이익률 추이' 패널의 영업이익률(주황 실선)은 FY23 9.81% → FY24 1.15% → FY25 -6.7%로 급락해 적자 전환한다. 즉 수입보험료(특히 저축성)는 늘지만 수익성은 무너지는 방향으로 두 추세는 명확히 상반된다(보장성보험료는 787→709→641로 감소, 비중 38.3%→34.0%→31.8% 하락 — 외형 성장이 저축성 중심임이 수익성 악화와 맞물림). 단위: 보험료=막대 라벨값(십억원 추정), 이익률=%.",
+    "rubric": "두 패널을 교차 독해해야 정답: (1) 저축성보험료 막대가 증가(1,266→1,377)함을 읽고, (2) 영업이익률 선이 9.81%→-6.7%로 급락(적자전환)함을 읽어, (3) 두 추세가 상충임을 명시하면 정답. 영업이익률을 신계약률(연주황)이나 운용자산이익률(검정)과 혼동하거나, 단순 막대 합계만 보고 정합이라 답하면 오답.",
+    "agent_answer": "KDB생명보험의 외형과 수익성 방향은 서로 엇갈리고 있습니다. 외형 측면에서 저축성보험료는 FY23 1,266 (`FDD4!FDD4`)에서 FY25 1,377 (`FDD4!FDD4`)로 증가하였으나, 수익성 지표인 영업이익률은 FY23 9.81% (`FDD4!FDD4`)에서 FY25 -6.7% (`FDD4!FDD4`)로 하락하였습니다.\n\n결론적으로 저축성보험료 중심의 외형은 성장한 반면, 영업이익률은 적자로 전환되며 수익성은 악화되는 상반된 흐름을 보이고 있습니다.",
+    "pages_opened": [
+      "FDD4 — [LIFE] KDB생명보험 개요"
+    ]
+  },
+  {
+    "id": "L09",
+    "doc": "LIFE",
+    "capability": "C5-honesty",
+    "visual_type": "structure_diagram",
+    "difficulty": 4,
+    "question": "라이프 고객 DB-설계사 매칭 AI 모형에서, 고객 DB가 최종 매칭 결과로 가는 과정에 AI/예측 모형이 끼는 지점(모형 박스 이름)이 어디야? 한 군데로 딱 집기 어려우면 그렇게 말해도 돼.",
+    "ground_truth": "AI/예측 모형은 단일 단계가 아니라 흐름 전체에 걸쳐 3개의 모형 박스(모니터 아이콘)로 표시된다. (1) '고객 DB Pool'(좌상단 실린더) → 'DB 추출 모형', (2) '설계사 Pool'(좌하단 실린더) → '최적 설계사 예측 모형'. 이 둘의 출력이 합류해 (3) 'DB 배분모형'으로 들어가고, 그 결과가 우측 '매칭 결과' 패널(설계사 A↔고객 A AI스코어 0.893, 설계사 B↔고객 B 0.782, 설계사 C↔고객 C 0.719)로 출력된다. 따라서 'AI모형이 개입하는 한 단계'로 단정할 수 없으며, 추출·예측·배분 3개 단계 모두에 모형이 개입한다. 고객 DB의 핵심 경로는 'DB 추출 모형 → DB 배분모형 → 매칭 결과'이며, 최종 설계사-고객 배분을 산출하는 지점은 'DB 배분모형'이다.",
+    "rubric": "3개 모형 박스(DB 추출 모형, 최적 설계사 예측 모형, DB 배분모형)를 라벨대로 짚고, AI 개입이 단일 단계가 아니라 추출·예측·배분 전 단계에 걸쳐 있음을 명시하면 정답. 한 박스만 지목하거나 '한 단계'로 단정하면 오답.",
+    "agent_answer": "라이프 고객 DB-설계사 매칭 AI 모형에서 고객 DB가 최종 매칭 결과로 이어지는 과정 중 AI/예측 모형이 적용되는 지점은 DB 추출 모형(`FDD2, page FDD2`), 최적 설계사 예측 모형(`FDD2, page FDD2`), 그리고 DB 배분 모형(`FDD2, page FDD2`)입니다.",
+    "pages_opened": [
+      "FDD2 — [LIFE] 7. 전속채널리빌딩 및 AI 기반 DB 마케팅 혁신을 통한 영업 경쟁력 고도화(2_2)"
+    ]
+  },
+  {
+    "id": "L10",
+    "doc": "LIFE",
+    "capability": "C1-binding",
+    "visual_type": "heatmap_matrix",
+    "difficulty": 4,
+    "question": "라이프 대상 생보사 기업대출(억원)에서 2023년 SOC 기타대출 금액 얼마야?",
+    "ground_truth": "4,328억원. 2023 블록 SOC 행: 부동산담보 - / 신용 177 / 지급보증 1,156 / 유가증권담보 - / 기타대출 4,328.",
+    "rubric": "4,328을 정확히 짚으면 정답. 다른 연도(2024·2025 SOC 기타대출=4,409/4,178)나 다른 행을 답하면 오답. 3차원(연도×담보유형×성격) 셀 바인딩이 핵심.",
+    "agent_answer": "라이프 대상 생보사 중 KDB생명보험의 2023년 기업대출 내 SOC 기타대출 금액은 4,328억원(`FDD9, page FDD9`)입니다.",
+    "pages_opened": [
+      "FDD9 — [LIFE] BS Details – 대여금및수취채권 – 대출채권① 기업대출, 계속"
+    ]
+  },
+  {
+    "id": "L11",
+    "doc": "LIFE",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "라이프 대상 생보사 기업대출에서 부동산PF 잔액(합계)이 2023→2024→2025로 어떻게 변해? 세 값으로 알려줘.",
+    "ground_truth": "8,701 → 4,797 → 4,804 (억원). 2023→2024 큰 폭 감소(약 45%↓) 후 2024→2025는 거의 횡보(소폭 증가).",
+    "rubric": "세 값(8,701/4,797/4,804)과 추세(급감 후 횡보)를 맞히면 정답. 값 일부 틀리면 부분점수.",
+    "agent_answer": "라이프 대상 생보사(KDB생명보험)의 기업대출 내 부동산PF 잔액 합계는 2023년 8,701 (`FDD9!FDD9`), 2024년 4,797 (`FDD9!FDD9`), 2025년 4,804 (`FDD9!FDD9`)로 변동되었습니다.",
+    "pages_opened": [
+      "FDD9 — [LIFE] BS Details – 대여금및수취채권 – 대출채권① 기업대출, 계속"
+    ]
+  },
+  {
+    "id": "L12",
+    "doc": "LIFE",
+    "capability": "C1-binding",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "라이프 대상 생보사 기업대출에서 2023년 담보유형 중에 비중(%) 제일 큰 게 뭐고 몇 %야?",
+    "ground_truth": "기타대출, 37.5%. 2023년 기업대출 비중 행: 부동산담보 22.3% / 신용 1.0% / 지급보증 33.0% / 유가증권담보 4.1% / 기타대출 37.5% → 최대는 기타대출 37.5%. (금액으로도 기타대출 7,832억이 최대로 정합.)",
+    "rubric": "담보유형(기타대출)과 비중(37.5%)을 함께 맞혀야 정답. 37.5%만 맞고 유형을 유가증권담보 등으로 틀리면 오답(값↔라벨 바인딩 실패). 지급보증 33.0%를 최대로 답해도 오답.",
+    "agent_answer": "2023년 라이프 대상 생보사(KDB생명보험)의 기업대출 담보유형 중 비중이 가장 큰 항목은 기타대출이며, 그 비중은 37.5%(`FDD9, page FDD9 — [LIFE] BS Details – 대여금및수취채권 – 대출채권① 기업대출, 계속`)입니다.",
+    "pages_opened": [
+      "FDD9 — [LIFE] BS Details – 대여금및수취채권 – 대출채권① 기업대출, 계속"
+    ]
+  },
+  {
+    "id": "CS-01",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 4,
+    "question": "카이사르 구조 보면, 아직 설립 안 됐고 앞으로 새로 만들 예정인 법인(펀드·SPV)도 있어? 있으면 어떤 거야?",
+    "ground_truth": "범례상 'Entities/SPV (To Be Set-up)'은 흰색에 가까운 박스(RGB≈241,241,241)로 회색 'Incorporated'와 구분됨. 해당 near-white(신설예정) 박스: ①(우측 신설 펀드 클러스터, 실선 테두리) New Fund III GP·New Fund IV GP·각 SLP·LP·New CP Fund III, L.P.·New CP Fund IV, L.P. ②(중앙, 점선 테두리) Celadon Core LLC·Celadon (US) Ltd. 핵심: 같은 near-white(신설예정) 박스가 '실선'(New Fund 클러스터)과 '점선'(Celadon Core/US) 두 테두리 스타일로 나뉘는데, 이 테두리 차이가 무엇을 의미하는지는 범례에 설명이 없어 PDF(본 페이지)만으로는 판별 불가 — 단정하지 않고 '미상'으로 답하는 것이 정답. (Celadon Core LLC엔 각주 표식이 붙어 별도 설명이 있을 수 있으나 본 페이지에는 그 내용이 없음.)",
+    "rubric": "완전 정답 조건 3가지: (1) near-white(To-be) 박스를 회색(설립완료)과 색으로 구분해 식별 — New Fund III/IV 계열 + Celadon Core LLC + Celadon (US) Ltd. (2) 이들 To-be 박스가 '실선'과 '점선' 두 테두리 스타일로 나뉨을 포착. (3) 그 실선/점선 차이의 '의미'는 범례에 없어 PDF상 판별 불가임을 정직히 밝힘(지어내면 감점). 회색 설립완료 법인을 신설로 답하거나 테두리 의미를 임의 단정하면 오답.",
+    "agent_answer": "카이사르 구조 내에서 설립 예정인 법인은 Celadon Core LLC이며, 2025년에 신설될 예정입니다 (`FDD2, page FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24)`).",
+    "pages_opened": [
+      "FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24)"
+    ]
+  },
+  {
+    "id": "CS-02",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 4,
+    "question": "카이사르 구조에서 자기 은행계좌가 없어서 다른 관계사 거쳐 자금 정산해야 하는 법인들이 따로 있다던데, 어떤 애들이야?",
+    "ground_truth": "범례상 'Entities that require bank settlement'은 하늘색(light blue, RGB≈187,235,255) 박스. 해당 법인은 5개: Silver Treasure Inc., CP Global LLC, CP SPC, CP Investment Fund II GP Limited, CP Investment Fund II, L.P. (CP Investment Fund II, L.P.는 ★(Management & Manager fee 지급 entity) 표식도 함께 가짐). ※ Syndicate는 회색(165,166,165)=Incorporated로 은행정산 대상 아님(단 ★는 가짐). CP Holdings IA LLC는 진파랑(Fund I Portfolio)으로 별개.",
+    "rubric": "하늘색 박스 5개를 골라야 정답. Syndicate(회색)나 CP Holdings IA LLC(진파랑)를 포함하면 오답. ★(보수지급)과 하늘색(은행정산)은 별개 축 — Syndicate는 ★만 있고 은행정산은 아님.",
+    "agent_answer": "카이사르 구조에서 자체 은행계좌가 없어 관계사를 통해 자금을 정산하는 법인은 Celadon Partner SPV IX(`FDD4, page FDD4 — [CAESAR] Operating Revenue`)와 Angreal LLC(`FDD4, page FDD4 — [CAESAR] Operating Revenue`)입니다.",
+    "pages_opened": [
+      "FDD1 — [CAESAR] Target Overview | Overview, FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL), FDD4 — [CAESAR] Operating Revenue",
+      "FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24)"
+    ]
+  },
+  {
+    "id": "CS-03",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "structure_diagram",
+    "difficulty": 3,
+    "question": "카이사르 인수하고 나면 맨 위에서 지주 역할 하는 법인이 어디가 돼? 그 법인이 바로 아래 핵심 지주회사를 몇 % 들고 가는 구조야?",
+    "ground_truth": "목표 구조(Target Structure, To-be 2)에서 최상단 지주는 Silver Treasure Inc.(Seychelles)이며, 그 아래 핵심 지주 CP LLC(Cayman Islands)를 100.0% 보유하는 구조('To-be'). CP LLC 아래로 CP (AP) Ltd.(HK) 100%, CP (AP) GP Ltd.(HK) 100%, CP Int'l Ltd.(HK) 100%, CP (US) Ltd.(US) 100%(To-be), Celadon Core LLC 등이 연결됨.",
+    "rubric": "최상단 지주=Silver Treasure Inc.(Seychelles), 보유율=CP LLC 100.0% 둘 다 맞아야 정답. 'Target'/'To-be' 맥락(목표구조)임을 구분해야 함. 현재(Dec-24) 구조의 Tang Family를 답하면 질문(인수 후 목표구조) 의도와 어긋남.",
+    "agent_answer": "카이사르 인수 후 최상위 지주 역할 법인은 CP Holdings I LLC(`FDD2, page FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24)`)이며, 해당 법인이 바로 아래 핵심 지주회사인 CP LLC의 지분을 100.0%(`FDD2, page FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24)`) 보유하는 구조입니다.",
+    "pages_opened": [
+      "FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24)"
+    ]
+  },
+  {
+    "id": "CF-01",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "카이사르 DCF 기업가치가 경영진 가정이랑 자문사 가정이 꽤 차이 난다던데, 각각 얼마로 나왔어? 자문사 쪽은 케이스가 여러 개라던데 그것도 다 알려줘.",
+    "ground_truth": "DCF 기업가치(Enterprise Value, USDm): 경영진(MGT Case) = 312 (범위 282~360, WACC 13.8%/PGR 2.7%). 자문사(DTT Case)는 3개 케이스 — Worst 48 (42~58), Base 111 (101~127), Best 167 (152~191) (모두 WACC 13.8% 기준, PGR 0.0%). 경영진 312는 자문사 최고치(Best 167)보다도 높고, 자문사 Base(111) 대비 약 201 높음(약 2.8배).",
+    "rubric": "경영진=312(또는 282~360), 자문사=3케이스(Worst 48/Base 111/Best 167) 구조를 잡아야 정답. 자문사를 단일값으로만 답하면 부분점. 두 주체(MGT vs DTT)를 혼동하면 오답.",
+    "agent_answer": "카이사르(Project CAESAR)의 DCF 기업가치 추정치는 경영진 가정과 자문사(Deloitte) 가정에 따라 다음과 같이 산출되었습니다.\n\n먼저 경영진 가정(Management Case) 기준 기업가치는 최소 282 (`FDD6, page FDD6`)에서 최대 360 (`FDD6, page FDD6`)으로 추정되었습니다.\n\n자문사인 Deloitte의 가정은 세 가지 케이스로 나누어 제시되었습니다.\n- **Base Case**: 기업가치 USD 111m (`FDD6, page FDD6` 및 `FDD7, page FDD7`)이며, 범위는 최소 101 (`FDD6, page FDD6`)에서 최대 127 (`FDD6, page FDD6`)입니다.\n- **Best Case**: 기업가치 USD 167m (`FDD6, page FDD6`)이며, 범위는 최소 152 (`FDD6, page FDD6`)에서 최대 191 (`FDD6, page FDD6`)입니다.\n- **Worst Case**: 기업가치 USD 48m (`FDD6, page FDD6`)이며, 범위는 최소 42 (`FDD6, page FDD6`)에서 최대 58 (`FDD6, page FDD6`)입니다.",
+    "pages_opened": [
+      "FDD6 — [CAESAR] Valuation Summary",
+      "FDD7 — [CAESAR] Valuation | Major KPIs (MGT Case vs. DTT Case), FDD6 — [CAESAR] Valuation Summary"
+    ]
+  },
+  {
+    "id": "CF-02",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 4,
+    "question": "카이사르 가치평가에서 DCF로 낸 값이랑 상장사 비교·거래사례로 낸 값 중에 어느 쪽이 더 보수적으로(낮게) 나와?",
+    "ground_truth": "한쪽이 일률적으로 낮다고 단정하기 어려움 — DCF는 시나리오 주체에 따라 폭이 큼: 경영진(MGT) 282~360으로 전체에서 가장 높고, 자문사(DTT)는 42~191(Worst~Best)로 낮은 대역. 시장접근법: Trading(상장사비교) 51~170, Transaction(거래사례) 24~211. 가장 보수적인(최저) 단일값은 거래사례(Transaction)의 24, 그다음 DTT Worst DCF의 42. 즉 '경영진 DCF만 두드러지게 높고', 자문사 DCF와 시장접근법은 비슷한 낮은 대역에서 겹침. (USDm)",
+    "rubric": "'경영진 DCF가 가장 높고, 자문사 DCF·시장접근법은 낮은 대역에서 겹친다 / 최저는 거래사례(24)'를 짚으면 정답. 단순히 'DCF가 더 높다' 또는 'DCF가 더 낮다'로 단정하면 부분점/오답(시나리오에 따라 갈림).",
+    "agent_answer": "카이사르 가치평가 결과, 상장사 비교 및 거래사례 방식(Market Approach)이 DCF 방식보다 더 보수적으로(낮게) 산출되었습니다.\n\n상세 수치는 다음과 같습니다.\n\n1. **DCF 방식**: DTT Base Case 기준 기업가치는 USD 111m (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)이며, 시나리오별로 Worst Case USD 48m (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)에서 Best Case USD 167m (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)의 범위를 보입니다.\n2. **상장사 비교 및 거래사례 방식 (Market Approach)**:\n   - 상장사 비교(Trading): Min 51 (`FDD6, page FDD6 — [CAESAR] Valuation Summary`) ~ Max 170 (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)\n   - 거래사례(Transaction): Min 24 (`FDD6, page FDD6 — [CAESAR] Valuation Summary`) ~ Max 211 (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)\n\n두 방식의 최솟값을 비교하면, DCF의 최솟값인 Worst Case Min 42 (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)보다 거래사례 방식의 Min 24 (`FDD6, page FDD6 — [CAESAR] Valuation Summary`)가 더 낮게 산출되어 Market Approach가 더 보수적인 결과값을 제시하고 있습니다.",
+    "pages_opened": [
+      "FDD6 — [CAESAR] Valuation Summary"
+    ]
+  },
+  {
+    "id": "CK-01",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "카이사르 사업계획 보면 앞으로 새로 만들 펀드 규모를 경영진안·자문사안으로 나눠놨다던데, 두 안의 펀드 규모 가정이 같아 달라? 다르면 어디가 더 커?",
+    "ground_truth": "다름. 경영진안(회사 제시)이 자문사안(DTT)보다 큼. 자문사는 신규 결성 예정 펀드 규모를 경영진 제시값의 약 83% 수준으로 하향 조정. 예(Target Fund Size, USDm): CPHII 경영진 500 vs 자문사 414, CPHIII 600 vs 497, CPHVI 1,000 vs 828, SPV 24 300 vs 248 등. 기존 펀드(CPHI 205)나 일부 SPV(SPV II 96·SPV IX 88 등)는 단일값으로 동일.",
+    "rubric": "'다르다 + 경영진(회사 제시)이 더 크고 자문사가 ~83%로 하향'을 짚으면 정답. 방향을 반대로(자문사가 더 큼) 답하면 오답. 예시 값 페어를 들면 가점.",
+    "agent_answer": "카이사르 사업계획의 신규 펀드 규모 가정은 경영진안(Management Case)과 자문사안(Deloitte Case)이 서로 다릅니다.\n\n각 펀드별 규모를 비교하면 다음과 같습니다:\n- **CPHI**: 경영진안 205 (`FDD7, page FDD7`) < 자문사안 414 (`FDD7, page FDD7`)\n- **CPHII**: 경영진안 414 (`FDD7, page FDD7`) < 자문사안 497 (`FDD7, page FDD7`)\n- **CPHIII**: 경영진안 500 (`FDD7, page FDD7`) < 자문사안 579 (`FDD7, page FDD7`)\n- **CPHIV**: 경영진안 600 (`FDD7, page FDD7`) < 자문사안 662 (`FDD7, page FDD7`)\n- **CPHV**: 경영진안 700 (`FDD7, page FDD7`) < 자문사안 828 (`FDD7, page FDD7`)\n- **CPHVI**: 경영진안 800, 1,000 (`FDD7, page FDD7`) > 자문사안 248 (`FDD7, page FDD7`)\n\n종합적으로 CPHV까지는 자문사안의 규모 가정이 경영진안보다 더 크지만, CPHVI의 경우 경영진안이 더 크게 가정되어 있습니다.",
+    "pages_opened": [
+      "FDD7 — [CAESAR] Valuation | Major KPIs (MGT Case vs. DTT Case)"
+    ]
+  },
+  {
+    "id": "CK-02",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 4,
+    "question": "카이사르 신규 펀드 출시(결성) 시점이 경영진 가정이랑 자문사 가정이랑 차이가 있어?",
+    "ground_truth": "있음. 자문사(DTT) 가정은 신규 펀드(CPHIII·CPHIV·CPHV·CPHVI 등)의 결성(launch) 시점을 경영진 가정 대비 각 1년씩 늦게 잡음 — 일정 막대에 'ᐅ 1년' 화살표로 지연을 표시. 즉 DTT가 신규 펀드 출시를 1년 보수적으로 이연. 기존 펀드(CPHI)·SPV(CUP·Airwallex 등)는 '공통(회색)'으로 동일.",
+    "rubric": "'경영진 대비 자문사가 신규 펀드 결성을 1년 지연(이연)'을 짚으면 정답. 차이 없음/방향 반대로 답하면 오답.",
+    "agent_answer": "카이사르 신규 펀드 출시(결성) 시점에 대해 경영진 가정(MGT Case)과 자문사 가정(DTT Case) 간의 차이는 제공된 데이터에서 확인되지 않습니다.\n\n제공된 evidence에 따르면, CPHIII(FY29), CPHIV(FY34), CPHV(FY36), CPHVI(FY37)의 출시 시점은 모두 1년으로 기재되어 있으나(`FDD7, page FDD7`), 이것이 경영진과 자문사 중 어느 쪽의 가정인지 또는 두 가정 사이에 차이가 있는지에 대한 비교 정보는 명시되어 있지 않습니다.\n\n다만, 펀드 규모(Fund Size) 및 성과 가정에서는 다음과 같은 차이가 확인됩니다.\n- **펀드 규모**: 경영진은 FY25 Fund II USD 500m을 시작으로 점진적 확대(600m/700m/800m/1000m)를 가정하는 반면(`FDD6, page FDD6`), 자문사는 외부 LP 자본 비율(70%)과 후속 펀드 연평균 성장률(19%)을 반영하여 런칭 예정 Fund Size 조정률을 83%로 가정하고 있습니다(`FDD6, page FDD6`, `FDD7, page FDD7`).\n- **성과 가정**: 신규 펀드의 Target MOIC는 경영진 가정 시 3.0x이며(`FDD6, page FDD6`), 자문사 가정 시 MOIC 달성률은 85%로 설정되어 있습니다(`FDD6, page FDD6`, `FDD7, page FDD7`).",
+    "pages_opened": [
+      "FDD7 — [CAESAR] Valuation | Major KPIs (MGT Case vs. DTT Case), FDD6 — [CAESAR] Valuation Summary"
+    ]
+  },
+  {
+    "id": "CP-01",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "카이사르 포트폴리오 중에 투자원금 대비 회수배수(MOIC)가 제일 높은 건이 뭐야? 몇 배야?",
+    "ground_truth": "Aidi (자체 펀드 Fund I, 비히클 'SPV', 섹터 Education) — MOIC 9.2x로 포트폴리오 중 최고. 다음은 Atium(Fund I, Reticulated Ltd) 5.1x, SentiBio 3.3x 순. (Capital 14.5 → NAV 133.4 ≈ 9.2x).",
+    "rubric": "Aidi 9.2x를 짚어야 정답. p5 타임라인의 'Atium MOIC 12.2x'(부분회수 실현 MOIC, 별도 지표)를 답하면 오답 — 포트폴리오 성과표상 MOIC와 구분.",
+    "agent_answer": "카이사르 포트폴리오 중 투자원금 대비 회수배수(MOIC)가 가장 높은 건은 Atium이며, 수치는 12.2x(`FDD1, page FDD1 — [CAESAR] Target Overview | Overview`)입니다. 이는 Aidi의 MOIC인 9.2X(`FDD3, page FDD3 — [CAESAR] Target Overview | Investment Performance`)보다 높습니다.",
+    "pages_opened": [
+      "FDD1 — [CAESAR] Target Overview | Overview, FDD6 — [CAESAR] Valuation Summary",
+      "FDD3 — [CAESAR] Target Overview | Investment Performance"
+    ]
+  },
+  {
+    "id": "CP-02",
+    "doc": "CAESAR",
+    "capability": "C1-binding",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "카이사르 포트폴리오 중에 이미 완전히 엑싯한 건도 있어? 부분 회수랑 완전 엑싯 구분해서 알려줘.",
+    "ground_truth": "완전 Exit(1건): Atium — 외부 LP 지분(External LP, 비히클 Angreal LLC)의 Atium 투자가 'Exit'(완전 회수). 부분 회수(Partial Exit, 3건, 모두 자체 펀드 Fund I): Atium(Reticulated Ltd.), Catalyte(SPV IV), Union pay(SPV II). 나머지는 모두 'Active'. ※ 동일사 Atium이 투자기구별 상태 상이 — 자체펀드 부분회수 vs 외부 LP 완전 Exit.",
+    "rubric": "완전 Exit=Atium(외부 LP/Angreal LLC) 1건, Partial Exit 3건(Atium/Reticulated·Catalyte/SPV IV·Union pay/SPV II)을 구분해야 정답. Partial Exit을 2건으로만 답하거나 Union pay 누락 시 부분점. Atium의 두 상태(기구별 상이)를 뭉뚱그리면 부분점.",
+    "agent_answer": "카이사르 포트폴리오 중 완전히 엑싯한 건이 존재합니다. 24년 말 기준 회수 현황은 다음과 같습니다.\n\n*   **완전 엑싯 (Exit):** Atium (SPVs) (`FDD3, page FDD3`)\n*   **부분 회수 (Partial Exit):** Atium (Fund I) (`FDD3, page FDD3`), Catalyte (Fund I) (`FDD3, page FDD3`), Union pay (Fund I) (`FDD3, page FDD3`)",
+    "pages_opened": [
+      "FDD3 — [CAESAR] Target Overview | Investment Performance, FDD1 — [CAESAR] Target Overview | Overview"
+    ]
+  },
+  {
+    "id": "CP-03",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "카이사르 운용보수 수익이 자기 펀드(Fund 1)에서 나오는 거랑 외부 LP(SPV)에서 나오는 거로 나뉜다던데, 각각 얼마고 비중이 어떻게 돼?",
+    "ground_truth": "자체 펀드(Proprietary, Fund I): Manager fee income 4.7m, 비중 81%. 외부 LP(External LP, SPVs): Management fee income 1.1m, 비중 19%. 합계 5.8m. (단위 USDm). 자체 펀드는 'Manager fee', 외부 LP는 'Management fee'로 명칭이 구분됨.",
+    "rubric": "자체 4.7m(81%) / 외부 1.1m(19%) 두 값·비중을 맞춰야 정답. 명칭(Manager fee vs Management fee) 구분하면 가점. 금액/비중을 뒤바꾸면 오답.",
+    "agent_answer": "카이사르의 운용보수 수익은 자체 펀드(Fund 1)와 개별 SPV 기반으로 나뉘며, 연도별 금액과 비중은 다음과 같습니다.\n\n**1. 자체 펀드(Fund 1) 기반 Manager Fee**\n- FY22: 3,000 (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n- FY23: 5,000 (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n- FY24: 4,700 (`FDD4, page FDD4 — [CAESAR] Operating Revenue`) / 비중 81% (`FDD3, page FDD3 — [CAESAR] Target Overview | Investment Performance`)\n\n**2. 개별 SPV 기반 Management Fee**\n- FY22: 1,001 (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n- FY23: 891 (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n- FY24: 1,138 (`FDD4, page FDD4 — [CAESAR] Operating Revenue`) / 비중 19% (`FDD3, page FDD3 — [CAESAR] Target Overview | Investment Performance`)\n\n**3. 연도별 비중 계산 (운용보수 합계 대비)**\n- FY22: 자체 펀드 75.0% (3,000 / (3,000 + 1,001)), SPV 25.0% (1,001 / (3,000 + 1,001))\n- FY23: 자체 펀드 84.8% (5,000 / (5,000 + 891)), SPV 15.2% (891 / (5,000 + 891))\n- FY24: 자체 펀드 80.5% (4,700 / (4,700 + 1,138)), SPV 19.5% (1,138 / (4,700 + 1,138))\n  *(참고: FY24의 경우 FDD3 리포트상 비중은 자체 펀드 81%, SPV 19%로 기재되어 있습니다.)*",
+    "pages_opened": [
+      "FDD4 — [CAESAR] Operating Revenue, FDD3 — [CAESAR] Target Overview | Investment Performance",
+      "FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)"
+    ]
+  },
+  {
+    "id": "CT-01",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "data_chart",
+    "difficulty": 3,
+    "question": "카이사르 사업계획상 펀드별 예상 수익(Projected Fund ROI/Gain)을 경영진안이랑 자문사안으로 나눠 보여주던데, 어느 쪽 전망이 더 높아?",
+    "ground_truth": "경영진안(Management Case)의 Projected Fund ROI(Gain)가 자문사안(Deloitte/DTT Case)보다 일관되게 높음. 자문사는 셀러 제시 MOIC에 예상 달성률 85%를 적용해 Fund별 Projected Gain을 하향 추정(Projected Gain = NAV at Closing − Initial Capital Investment). 예(USDm, 연도 누적): 경영진 최고 ~680(중간연도 470·630 등) vs 자문사 최고 ~437(302·405 등). 두 패널의 Enterprise Value도 경영진 USD 312m vs 자문사 USD 111m로 정합.",
+    "rubric": "'경영진(Management) 전망이 더 높고, 자문사는 85% 달성률 적용해 하향'을 짚으면 정답. 방향을 반대로 답하면 오답. 예시 값/EV(312 vs 111)를 들면 가점.",
+    "agent_answer": "카이사르 사업계획상 펀드별 예상 수익(Projected Fund ROI/Gain)은 경영진안(MGT Case)의 전망이 자문사안(DTT Base Case)보다 더 높습니다.\n\n연도별 상세 수치를 비교하면 다음과 같습니다:\n\n*   **FY25**: 경영진안 100 (`FDD7, page FDD7`) > 자문사안 64 (`FDD7, page FDD7`)\n*   **FY26**: 경영진안 100 (`FDD7, page FDD7`) < 자문사안 64, 161, 161 (`FDD7, page FDD7`)\n*   **FY27**: 경영진안 250, 250 (`FDD7, page FDD7`) > 자문사안 129 (`FDD7, page FDD7`)\n*   **FY28**: 경영진안 200 (`FDD7, page FDD7`) > 자문사안 64, 64 (`FDD7, page FDD7`)\n*   **FY29**: 경영진안 100, 100 (`FDD7, page FDD7`) > 자문사안 154, 77, 77 (`FDD7, page FDD7`)\n*   **FY30**: 경영진안 120, 120 (`FDD7, page FDD7`) > 자문사안 180, 90 (`FDD7, page FDD7`)\n*   **FY31**: 경영진안 140, 350, 350 (`FDD7, page FDD7`) > 자문사안 225, 225 (`FDD7, page FDD7`)\n*   **FY32**: 경영진안 280 (`FDD7, page FDD7`) > 자문사안 257 (`FDD7, page FDD7`)\n*   **FY33**: 경영진안 140, 140 (`FDD7, page FDD7`) > 자문사안 64, 161, 161 (`FDD7, page FDD7`)\n*   **FY34**: 경영진안 160, 400, 400 (`FDD7, page FDD7`) > 자문사안 206, 257, 257 (`FDD7, page FDD7`)\n*   **FY35**: 경영진안 320 (`FDD7, page FDD7`) > 자문사안 244, 302 (`FDD7, page FDD7`)\n*   **FY36**: 경영진안 200 (`FDD7, page FDD7`) < 자문사안 405 (`FDD7, page FDD7`)\n*   **FY37**: 경영진안 630, 660, 680 (`FDD7, page FDD7`) > 자문사안 437 (`FDD7, page FDD7`)\n*   **FY38**: 경영진안 540, 470 (`FDD7, page FDD7`) > 자문사안 347 (`FDD7, page FDD7`)\n\n대부분의 연도에서 경영진안의 예상 수익 수치가 자문사안보다 높게 책정되어 있어, 전반적인 전망은 경영진안이 더 높다고 판단됩니다.",
+    "pages_opened": [
+      "FDD7 — [CAESAR] Valuation | Major KPIs (MGT Case vs. DTT Case)"
+    ]
+  },
+  {
+    "id": "CE-01",
+    "doc": "CAESAR",
+    "capability": "C3-structural",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "리포트에 카이사르 운용보수율이 계약상 2% 수준이라고 하던데, 실제 최근 3개 연도 보수율 추이 보면 진짜 2% 맞아? 어떻게 움직였어?",
+    "ground_truth": "정확히 2%로 일정하지 않음 — 보수는 두 갈래. (1) 자체 펀드 Manager Fee(Fund 1): 실제 보수율 FY22 2.3% → FY23 2.8% → FY24 2.4%로 계약율 2.0%를 매년 상회(FY23 정점). (2) SPV Management Fee: 본문은 '고정 약 2.0% 적용'이라지만 실제 실현율은 집계 0.4%/0.3%/0.3%(개별 SPV II 1.0/0.9/0.9%, 계약 0.9%), 신규 SPV 22·24만 계약 2.0% 고정. 즉 자체 펀드는 2%를 넘고, SPV는 2%에 못 미치는 등 항목·연도별로 달라 '계약상 2%'가 실제와 그대로 일치하지 않음.",
+    "rubric": "'계약 2.0%지만 실제 자체펀드 Manager Fee는 2.3→2.8→2.4%로 상회'를 짚으면 핵심 정답. SPV 실제율이 2% 미만이라는 점까지 짚으면 가점. '정확히 2% 맞다'고 답하면 오답.",
+    "agent_answer": "카이사르의 계약상 운용보수 요율은 2.0%(`FDD4, page FDD4 — [CAESAR] Operating Revenue`)이며, 특히 2024년 말 이후 후속 투자 건부터는 Invested Capital에 고정 수수료율 2.0%를 적용하는 방식으로 전환되었습니다(`FDD4, page FDD4 — [CAESAR] Operating Revenue`).\n\n하지만 최근 3개 연도의 실제 보수율(Manager Fee Income / Fee rate % Actual) 추이를 살펴보면, 계약상 요율인 2%보다 높은 수준에서 움직였으며 구체적인 추이는 다음과 같습니다:\n- FY22: 2.3% (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n- FY23: 2.8% (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n- FY24: 2.4% (`FDD4, page FDD4 — [CAESAR] Operating Revenue`)\n\n결론적으로 실제 보수율은 최근 3년간 2.3% → 2.8% → 2.4%로 변동하며 계약상 요율인 2%를 상회하였습니다. 이는 과거 운용보수가 예상 영업비용 기반(Cost-basis)으로 청구되었던 방식의 영향으로 분석됩니다(`FDD4, page FDD4 — [CAESAR] Operating Revenue`).",
+    "pages_opened": [
+      "FDD4 — [CAESAR] Operating Revenue, FDD1 — [CAESAR] Target Overview | Overview",
+      "FDD4 — [CAESAR] Operating Revenue, FDD3 — [CAESAR] Target Overview | Investment Performance",
+      "FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)"
+    ]
+  },
+  {
+    "id": "CE-02",
+    "doc": "CAESAR",
+    "capability": "C1-binding",
+    "visual_type": "table_image",
+    "difficulty": 4,
+    "question": "카이사르에서 운용보수 받기로 돼 있는(지급대상) SPV랑 실제로 작년에 보수가 들어온 SPV 수가 같아? 각각 몇 개야?",
+    "ground_truth": "같지 않음. (1) 'Manager Fee 지급대상'(O 표시) = 12개: Aidi·Atium·GeneFab·Catalyte·CUP·Avendesora·GDSI(SPV26)·NSG BioLabs·GDSI(Holdings Finance)·RegCell·Craftsman Bio(이상 Fund I 11개) + Toraken LLC(Other) 1개. (2) 실제 지급(='24년 Holding 1A 산하에서 지급된) = 11개(본문 '이 중 11개의 SPV로부터 Manager Fee가 지급' + 하단 집계행 'Manager Fee 지급대상 SPV 수 Dec-24=11'). 차이 1개 = Toraken LLC(Other 구분, Dec-24 잔액 '-'로 당해 미지급). ※ SentiBio·K&Soda는 O 없음(대상 아님).",
+    "rubric": "지급대상 12 / 실지급 11을 구분해야 정답. 둘을 같게(11=11 또는 12=12) 답하면 부분점. 단순 O 세기만으로 13 등으로 답하면 오답(SentiBio엔 O 없음). 차이 원인(Toraken LLC)을 짚으면 가점.",
+    "agent_answer": "카이사르의 운용보수 지급 대상 SPV 수와 실제 보수가 지급된 SPV 수는 서로 같지 않습니다.\n\n운용보수 지급 대상인 FVTPL 인식 SPV 수는 30개(`FDD5, page FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)`)이며, 실제 보수가 지급된 SPV 수는 11개(`FDD5, page FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)`)입니다.\n\n다만, 지급 대상 수와 실제 지급 수 모두 동일한 출처 셀(`FDD5, page FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)`)에서 인용되었으므로, 서로 다른 자료를 통한 정밀 대사 없이는 두 수치의 정합성을 단정할 수 없습니다.",
+    "pages_opened": [
+      "FDD4 — [CAESAR] Operating Revenue, FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24), FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)",
+      "FDD5 — [CAESAR] Manager Fee (CP Holdings IA LLC - FVTPL)"
+    ]
+  },
+  {
+    "id": "CH-01",
+    "doc": "CAESAR",
+    "capability": "C5-honesty",
+    "visual_type": "table_image",
+    "difficulty": 3,
+    "question": "카이사르 자문사 DCF에서 베타 구할 때 쓴 유사회사들, 그 회사별 베타 값이 각각 얼마야?",
+    "ground_truth": "자료에는 개별 유사회사(peer)별 베타 값이 제시돼 있지 않음. WACC 표에는 평가일 기준 유사회사 평균으로 산출한 베타만 표시됨 — βL(타인자본구조 반영) 1.19, βU(무차입) 1.12 (Source: Bloomberg). 각주[1]에 peer 6곳(Alaris Equity Partners Income Trust, Clairvest Group, Clarke Inc, Value Partners Group, Hotung Investment Holdings, STIC Investment) 명단만 나열될 뿐, 회사별 베타 수치는 없음. 따라서 회사별 베타는 '자료로 확인 불가'가 정답.",
+    "rubric": "'개별 peer별 베타는 자료에 없음(평균 βL 1.19/βU 1.12와 peer 명단만 있음)'이라고 답해야 정답. 1.19나 1.12를 특정 회사 값처럼 제시하거나, 없는 회사별 수치를 지어내면 오답(환각).",
+    "agent_answer": "카이사르 자문사 DCF의 베타 산출을 위해 사용된 유사회사 리스트는 Alaris Equity Partners Income Trust, Clairvest Group, Clarke Inc, Value Partners Group, Hotung Investment Holdings, STIC Investment (`FDD8, page FDD8 — [CAESAR] Valuation | WACC`)입니다. 다만, 각 회사별 구체적인 베타 값은 제공된 evidence에 명시되어 있지 않아 확인되지 않습니다.",
+    "pages_opened": [
+      "FDD7 — [CAESAR] Valuation | Major KPIs (MGT Case vs. DTT Case), FDD8 — [CAESAR] Valuation | WACC, FDD6 — [CAESAR] Valuation Summary",
+      "FDD8 — [CAESAR] Valuation | WACC, FDD6 — [CAESAR] Valuation Summary"
+    ]
+  }
+]

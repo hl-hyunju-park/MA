@@ -1,0 +1,59 @@
+qa_eval: questions=qa.jsonl dataset=v0.2 out=data/eval/ab_tokens/tok_r1 cmds=['eval']
+answering 54 questions · dataset=v0.2 (55 pages) · 8 workers
+--- S01 (STELLA/C3-structural)  네, 스텔라 지배구조상 모회사가 20% 미만의 소액 지분만 직접 보유하고 있는 펀드들이 다수 존재합니다. 해당 펀드와 지분율은
+--- S07 (STELLA/C3-structural)  스텔라 골프산업 거래배수(EV/EBITDA) 분포의 연도별 상·하단 격차를 분석한 결과는 다음과 같습니다.  연도별 격차 계산
+--- S08 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스) 운용 펀드 중 설정일과 만기일 기준으로 가장 오래 운용되는 펀드는 센트로이드제2호바이아
+--- S02 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)는 센트로이드매니지먼트의 지분을 100.0% (`FDD3, page FDD3`) 보유하고
+--- S06 (STELLA/C2-visualonly)  스텔라 Management Case와 Deloitte Case의 지분가치 차이에서 투자자산 회수가치(Exit Value) 조정
+--- S03 (STELLA/C3-structural)  스텔라(솔리드이엔지) 최초 인수 당시의 투자구조 및 자금 흐름은 다음과 같습니다.  **1. 자금 흐름 순서** 자금은 GP/
+--- S05 (STELLA/C1-binding)  FY24부터 FY29까지 매년 Management Case의 운용펀드 규모(AUM) 전망치가 Deloitte Case보다 더 
+--- S04 (STELLA/C3-structural)  스텔라 가치평가 결과, Deloitte Case 기준 DCF 지분가치와 시장가치 접근법(GPC, GTC)으로 산출된 지분가치 
+--- S12 (STELLA/C4-reconcile)  스텔라의 FY23 영업비용은 FDD 보고서상 7,278백만원(`FDD13, page FDD13` 및 `FDD2, page FD
+--- S09 (STELLA/C3-structural)  스텔라(센트로이드 인베스트먼트파트너스)가 운용 중인 펀드 중 현재 기준 수익률(IRR)이 마이너스인 펀드는 다음과 같이 총 2
+--- S14 (STELLA/C2-visualonly)  스텔라의 출자자 중 가장 많이 출자한 단일 LP는 새마을금고이며, 출자 금액은 5,900억원(`FDD11, page FDD11
+--- S10 (STELLA/C1-binding)  스텔라의 Operating Revenue(관리보수) 전망을 비교한 결과, FY24부터 FY29까지 전 기간에 걸쳐 Manage
+--- S16 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역의 매도가능증권 Dec-23 잔액은 12,296(`FDD12, page FDD12`)입니다. 이는 BS
+--- S15 (STELLA/C4-reconcile)  스텔라 센트로이드인베스트먼트파트너스의 FY23 영업수익은 FDD 보고서 기준 13,020백만원(`FDD13, page FDD1
+--- S18 (STELLA/C4-reconcile)  스텔라 NAV 조정 내역상 장기대여금의 Dec-23 잔액은 9,375(`FDD12, page FDD12 — [STELLA] A
+--- S22 (STELLA/C1-binding)  스텔라 상장사 비교(GPC)에서 EV/EBITDA 배수가 가장 낮은 회사는 Q Capital Partners(`FDD18!FD
+--- S19 (STELLA/C1-binding)  스텔라 Deloitte Case DCF에서 WACC 15.5%, 영구성장률(PGR) 1.0%를 적용했을 때의 지분가치는 85,
+--- S21 (STELLA/C2-visualonly)  스텔라 Deloitte Case DCF 민감도 분석 결과, 지분가치가 가장 커지는 WACC와 성장률(PGR) 조합은 WACC 
+--- S28 (STELLA/C2-visualonly)  스텔라 거래사례 비교(GTC)에서 Deal Value가 가장 큰 거래는 Woori Venture Partners Co., Lt
+--- S17 (STELLA/C3-structural)  스텔라 가치평가 방법별 지분가치 범위(최저~최고)를 분석한 결과, 최저~최고 폭이 가장 넓은 방법은 **GPC**입니다.  각
+--- S20 (STELLA/C3-structural)  스텔라 Deloitte Case DCF에서 영구성장률(PGR)을 1.0%로 고정했을 때, WACC가 13.5%에서 17.5%로
+--- S24 (STELLA/C3-structural)  스텔라 거래사례 비교(GTC)에서 EV/EBITDA 배수가 마이너스로 확인된 거래는 다음과 같습니다.  - Plutus Inv
+--- S23 (STELLA/C3-structural)  제공된 evidence에 따르면, 스텔라 상장사 비교(GPC) 배수 통계에서 특정 회사가 이상치로 판단되어 제외되었다는 구체적
+--- S26 (STELLA/C5-honesty)  스텔라 Deloitte Case DCF에서 WACC 15.5% 및 성장률(PGR) 2.5% 가정 시, Base 케이스의 지분가
+--- S30 (STELLA/C4-reconcile)  스텔라 보고서 본문에서 명시한 추정기간 동안의 총 운용 펀드 수는 13개(`FDD16, page FDD16`)입니다.  본문 
+--- S25 (STELLA/C5-honesty)  스텔라 상장사 비교(GPC) 분석 결과, 대상회사의 EV/EBITDA 배수는 최소(Min) 2.4x (`FDD18, page 
+--- S29 (STELLA/C4-reconcile)  2024년 8월 기준 스텔라의 조직 부문별 인원과 총원을 확인한 결과는 다음과 같습니다.  먼저 보고서(FDD) 상의 인원은 
+--- L02 (LIFE/C2-visualonly)  FY2025 기말 CSM을 가장 크게 감소시킨 요인은 CSM 조정이며, 그 크기는 -2,854억원(`FDD8!FDD8`)입니다
+--- L01 (LIFE/C2-visualonly)  라이프 대상 생보사(KDB생명)의 13회차 유지율이 업계평균을 처음으로 추월한 연도는 2021년입니다.  당시 유지율은 KDB
+--- L06 (LIFE/C3-structural)  KDB생명보험의 CRO/선임계리사가 담당하는 위험관리 및 계리부문 산하의 직속 팀은 리스크관리팀(`FDD10, page FDD
+--- L04 (LIFE/C2-visualonly)  2025년 기준 KDB생명보험의 보험 종목별 수입보험료 비중이 가장 큰 종목은 사망보험이며, 비중은 66.2%(`FDD6, p
+--- L03 (LIFE/C1-binding)  2023년 대비 2025년에 월납초회보험료 절대 증가폭이 가장 큰 상품군은 생존보험(연금형)입니다.  상품군별 증가폭 계산 결
+--- L07 (LIFE/C2-visualonly)  국내 생보사 거래사례 중 PBR 배수가 가장 높았던 딜은 2018년 9월(`FDD1, page FDD1`)의 오렌지라이프(`F
+--- L09 (LIFE/C5-honesty)  라이프 고객 DB-설계사 매칭 AI 플랫폼의 프로세스에서 고객 DB가 최종 매칭 결과로 이어지는 과정 중 AI/예측 모형이 적
+--- L05 (LIFE/C3-structural)  라이프 대상 생보사인 KDB생명의 2025년 기준 업계 순위는 보장성보험 13위(`FDD3!FDD3`), 저축성보험 11위(`
+--- L10 (LIFE/C1-binding)  라이프 대상 생보사 중 KDB생명보험의 2023년 기업대출 내 SOC 기타대출 금액은 4,328억원(`FDD9, page FD
+--- L08 (LIFE/C4-reconcile)  KDB생명보험의 FY23 대비 FY25 외형과 수익성 방향은 서로 엇갈리는 것으로 확인됩니다.  외형 측면에서 저축성보험료는 
+parse_action miss: persona=retriever:FDD2 — [CAESAR] Target Overview | Corporate Structure (Dec-24) max_tokens=6000 truncated=True rawlen=498
+--- L11 (LIFE/C3-structural)  라이프 대상 생보사의 기업대출 중 부동산PF 잔액 합계는 2023년 8,701 (`FDD9!FDD9`), 2024년 4,797
+--- L12 (LIFE/C1-binding)  2023년 라이프 대상 생보사(KDB생명보험)의 기업대출 담보유형 중 비중이 가장 큰 항목은 기타대출이며, 그 비중은 37.5
+--- CS-02 (CAESAR/C3-structural)  카이사르 구조에서 자체 은행계좌가 없어 관계사를 통해 자금을 정산하는 법인은 Celadon Partner SPV IX(`FDD
+--- CS-01 (CAESAR/C3-structural)  카이사르 구조 내에 아직 설립되지 않고 신설 예정인 법인, 펀드 및 SPV가 존재합니다. 구체적인 항목은 다음과 같습니다.  
+--- S27 (STELLA/C1-binding)  스텔라 조직의 대표이사 직속 부문은 투자본부, 포트폴리오운영본부, 법무, 관리본부, 부동산의 총 5개 부문으로 확인됩니다(임직
+--- CS-03 (CAESAR/C3-structural)  카이사르 인수 후 최상위 지주 역할을 하는 법인은 Silver Treasure Inc. (`FDD1, page FDD1 — [
+--- CF-01 (CAESAR/C3-structural)  카이사르의 DCF 기업가치는 경영진 가정과 자문사(Deloitte) 가정에 따라 다음과 같이 산출되었습니다.  경영진 가정(M
+--- CF-02 (CAESAR/C3-structural)  카이사르 가치평가 결과, 상장사 비교 및 거래사례 기준 값이 DCF 기준 값보다 더 보수적으로(낮게) 산출되었습니다.  상장사
+--- CP-01 (CAESAR/C3-structural)  카이사르 포트폴리오 중 투자원금 대비 회수배수(MOIC)가 가장 높은 건은 Atium이며, 2024년 기준 12.2x(`FDD
+--- CP-02 (CAESAR/C1-binding)  카이사르(CAESAR) 포트폴리오 중 완전 엑싯(Exit)한 건과 부분 회수(Partial Exit)한 건의 내역은 다음과 같
+--- CK-02 (CAESAR/C3-structural)  카이사르의 신규 펀드 출시(결성) 시점은 경영진 가정(Management Case)과 자문사 가정(Deloitte Case) 
+--- CK-01 (CAESAR/C3-structural)  카이사르 사업계획의 신규 펀드 규모 가정은 경영진안(Management Case)과 자문사안(Deloitte Case)이 서로
+--- CE-02 (CAESAR/C1-binding)  카이사르의 운용보수 지급 대상 SPV 수는 30개(`FDD5, page FDD5 — [CAESAR] Manager Fee (C
+--- CP-03 (CAESAR/C3-structural)  카이사르(Celadon Partners LLC)의 운용보수 수익은 자체 펀드(Proprietary)와 외부 LP(Externa
+--- CE-01 (CAESAR/C3-structural)  카이사르의 계약상 운용보수율은 2.0%(`FDD4, page FDD4 — [CAESAR] Operating Revenue`)로
+--- CT-01 (CAESAR/C3-structural)  카이사르 사업계획상 펀드별 예상 수익(Projected Fund ROI)은 경영진안(Management Case)의 전망이 자
+--- CH-01 (CAESAR/C5-honesty)  카이사르 자문사 DCF 밸류에이션에서 베타 산출을 위해 사용된 유사회사는 Alaris Equity Partners Income
+
+wrote data/eval/ab_tokens/tok_r1/answers.json  (54 answers)
