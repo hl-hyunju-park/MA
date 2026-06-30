@@ -224,15 +224,17 @@ def augment_diagram(md: str, image_path: str, model: str) -> str:
     log.info("diagram augment: legend categories without tagged boxes -> %s (re-prompting)", missing)
     from . import vision
 
+    _AUGMENT_MAX_TOKENS = 2000
+
     def _compute() -> str:
         return vision.invoke_vision(system=_REPROMPT_SYS, prompt=prompt,
-                                    image_path=image_path, model=model, max_tokens=2000)
+                                    image_path=image_path, model=model, max_tokens=_AUGMENT_MAX_TOKENS)
 
     try:
-        # cached on (model, system, user) like the main describe call — distinct prompt → distinct
-        # key, so the augmentation re-prompt is also free on a rebuild.
+        # cached on (model, system, user, max_tokens) like the main describe call — distinct prompt
+        # AND budget → distinct key, so the augmentation re-prompt is also free on a rebuild.
         augment = vision.get_or_compute(model=model, system=_REPROMPT_SYS, user=prompt + f"\n[img:{image_path}]",
-                                        compute=_compute)
+                                        compute=_compute, max_tokens=_AUGMENT_MAX_TOKENS)
     except RuntimeError as e:  # vision flake → keep the original page, just log the residual
         log.warning("diagram augment failed (%s) — keeping original; categories still missing: %s",
                     e, missing)

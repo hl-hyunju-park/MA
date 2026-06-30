@@ -87,12 +87,14 @@ src/stella_kb/
   parsers/pdf/            # vision PDF parser (describe/vision/tables/router); emits tables + [그래프]/[다이어그램]
 apps/agent/               # query agent (separate from the build pipeline)
   core.py                 # public API / facade: run / ask / answer(router) / stream_run — takes a dataset `store`;
-                          #   dispatches to the agents/ backends. run/answer(save=True) compounds onto the page
-  datasets.py             # dataset (wiki VERSION) registry + cached WikiStore  (id -> wiki dir)
-  agents/                 # the agent backends (core dispatches here)
+                          #   dispatches to the cores/ backends. run/answer(save=True) compounds onto the page
+  utils/datasets.py       # dataset (wiki VERSION) registry + cached WikiStore (id -> wiki dir); compact_outline
+  cores/                  # the agent backends (core dispatches here)
     supervisor.py         #   supervisor StateGraph: routes/merges wiki+dart worker nodes; streaming fast-path
     dart.py               #   DART tool-calling backend (public-company questions)
-    wiki/                 #   wiki LangGraph: state/nodes/build  (wiki_dir threaded through state, not a global)
+    wiki/                 #   wiki LangGraph: engine.py (LLM helper + _cell_on_page) · solve.py · nodes.py ·
+                          #   plan.py · navigate.py · synthesize.py · audit.py · state.py · build.py
+                          #   (wiki_dir threaded through state, not a global)
   retrieval/tools.py      # deterministic wiki access (lookup/open_page/query_ledger/trace_links); per-request wiki_dir
   api/                    # FastAPI: /ask (GET) · /ask/stream (GET SSE) · /datasets · /health  + schema/ (pydantic)
 frontend/                 # React+Vite chat UI; components/DatasetPicker selects wiki version; proxies API -> :5001
@@ -100,7 +102,7 @@ eval/
   stella_crosscheck.py    # v0.1 tier-based PDF×Excel cross-check (20 Q)
   qa_eval.py              # v0.2 vision-QA, rubric-based judge (54 Q over the FDD decks)
   ragas_eval.py
-config.yaml               # central config incl. `agent.datasets` version registry
+configs/config.yaml       # central config incl. `agent.datasets` version registry
 scripts/                  # run_pipeline.sh · run_server.sh · run_eval.sh · run_qa_eval.sh · serve_*.sh
 docs/workbook_analysis.md # per-sheet M&A analysis of all 63 sheets (+ sheet-name taxonomy)
 .venv/                    # Python 3.11 venv
@@ -118,8 +120,8 @@ python -m src.stella_kb.graph.query       # ask questions: resolve -> traverse -
 ```bash
 # Build a corpus version into its own tree (default writes knowledge/v0.1). For a new version,
 # point the env at its dir — no code edits (run_pipeline.sh inherits the exported env):
-MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh
-# then register it in config.yaml `agent.datasets` so the API/UI can select it.
+MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 MNA_WIKI_PDF_DIR=raw/v0.2 scripts/run_pipeline.sh
+# then register it in configs/config.yaml `agent.datasets` so the API/UI can select it.
 # Rebuilds are INCREMENTAL + deterministic: the parse/compile/PDF LLM calls are content-addressed
 # on disk (.cache/wiki_parse, .cache/wiki_prose, .cache/pdf_structure via llm.cached_chat), so an
 # unchanged sheet/deck is a cache hit (no LLM call, identical output) and only edited sources
@@ -156,8 +158,8 @@ Both `__main__` entry points also have a smoke-print; run them from the repo roo
 A **dataset** = one built wiki for a corpus version, self-contained under `knowledge/<version>/wiki`.
 The agent serves any registered dataset; selection is **per request**, concurrency-safe.
 
-- **Registry** — `config.yaml` `agent.datasets` maps a safe id → wiki dir (`v0.1: knowledge/v0.1/wiki`,
-  `v0.2: knowledge/v0.2/wiki`); `apps/agent/datasets.py` resolves + caches a `WikiStore` (index +
+- **Registry** — `configs/config.yaml` `agent.datasets` maps a safe id → wiki dir (`v0.1: knowledge/v0.1/wiki`,
+  `v0.2: knowledge/v0.2/wiki`); `apps/agent/utils/datasets.py` resolves + caches a `WikiStore` (index +
   INDEX.md, keyed by mtime). `default` falls back to `agent_wiki_dir()` (= `knowledge/v0.1/wiki`).
 - **API** — `GET /ask?question=…&dataset=v0.2` and `GET /ask/stream?…&dataset=…` (both endpoints
   are GET with `Query()` params — `/ask` POST was removed; SSE is `EventSource`-driven). `GET
@@ -167,7 +169,7 @@ The agent serves any registered dataset; selection is **per request**, concurren
   `AgentState → Send payload → solve_node → open_page/query_ledger` (a per-request arg), never a
   process global, so two requests can target different versions at once.
 - **Add a version**: build into `knowledge/<v>/` (`MNA_WIKI_DATA=knowledge/<v> … run_pipeline.sh`), then add
-  one line to `config.yaml` `agent.datasets`. No code changes.
+  one line to `configs/config.yaml` `agent.datasets`. No code changes.
 
 The two corpora today: **v0.1** = the canonical 63-sheet Centroid model (Excel + the Stella FDD
 ExecSummary). **v0.2** = a multi-deck vision test set — the same Centroid ledgers plus three FDD
@@ -176,12 +178,38 @@ two-layer index (deck description + ToC). PDF ingest (`pdf_pages.py`) now also c
 vision grids** (matrices/dense tables) and **`[다이어그램]` edge-lists** (box→box, %/amount,
 legend) onto each page, and keeps a page even when the structurer found no figures.
 
+**v0.3** = the **KDB생명보험 (KDB Life) DD data room** — a *new valuation target*, and a different
+corpus *shape*: a deep nested tree of ~1,520 mixed-format files (pdf/xlsx/doc/docx/hwp/…), not one
+formula model. It is built by `src/stella_kb/wiki/data_room.py` (the **document-data-room** assembler),
+not `run_pipeline.sh` — there is no cross-file formula DAG to extract, so it reuses the wiki pieces
+(`dump_md`→grid, `pdf_pages` vision, `merge_into_index`, `dedup`, `render_md`) and skips the DAG
+stages. Two ingest grains: **spreadsheets → md grids** (offline, full cell fidelity, streamed
+read-only via `dump_sheet`; aliases from header/row labels) and **PDFs → vision pages** (page-capped
+at `MNA_PDF_PAGE_CAP`=25). A committed **`knowledge/v0.3/curate.yaml`** (exclude/include globs) trims
+the 1,520 to a curated DD subset before any spend; macOS NFD filenames are NFC-normalized (`_nfc`)
+so KO aliases match KO queries. Build: `scripts/run_ingest_v03.sh` (or `--plan` for an offline
+curation dry-run). Result ≈ **2,015 pages / 24k aliases**. Register is the same one-line
+`agent.datasets` entry.
+
+Serving a corpus this large needed three **scaling fixes** (all additive — small corpora unchanged):
+(1) **`compact_outline`** (`utils/datasets.py`) — the per-page INDEX.md is ~370KB/~190k tokens at
+2,015 pages and overflows the planner/router prompt → HTTP 400; past `INDEX_MD_MAX_CHARS` it collapses
+to the heading-only section outline (v0.1/v0.2 ≈ 17KB stay full). (2) **router section-expansion +
+lookup fallback** (`solve._expand_section` / `retrieval.lookup_pages`) — given only headings the
+router picks a *section* name (`1.1. 경영실태평가`), so an unmatched pick expands to the real page
+keys under it (`…__경영실태평가_202303`), and if the LLM router whiffs entirely we fall back to the
+alias lookup's own candidates (deterministic recall floor). (3) **`_cell_on_page` positional match**
+(`cores/wiki/engine.py`) — dumped grids encode a cell coordinate by *position* (column-letter header
++ row-number label), never as the literal `E20` the formula-model pages carry, so the provenance
+guard learned to verify a grid cell by its column header + row label. With these, a v0.3 query
+("KDB생명의 지급여력비율은?") returns a quarter-by-quarter answer cited to `…!E20`.
+
 ### Evaluation
 
-Two ground-truth sets under `test_data/`, judged by the shared vLLM, written to `knowledge/eval/`:
+Two ground-truth sets under `raw/`, judged by the shared vLLM, written to `knowledge/eval/`:
 - **`eval/stella_crosscheck.py`** (v0.1) — 20 tier-1/2/3 PDF×Excel cross-check questions.
 - **`eval/qa_eval.py`** (v0.2) — 54 **vision-only** questions over the FDD decks
-  (`test_data/v0.2/ground_truth/qa.jsonl`), scored **rubric-based** (1.0/0.5/0.0) with breakdowns
+  (`raw/v0.2/ground_truth/qa.jsonl`), scored **rubric-based** (1.0/0.5/0.0) with breakdowns
   by doc / capability (C1–C5) / visual_type. Run via `scripts/run_qa_eval.sh`.
 
 ⚠️ **The eval is noisy.** The shared vLLM is non-deterministic even at temperature 0 (continuous

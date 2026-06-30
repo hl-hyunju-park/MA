@@ -9,17 +9,18 @@ __pycache__/
 
 # Data: the workbook (binary, diffs not meaningful) and all regenerable build
 # artifacts (parsed/, wiki/, md/, *.json, *.graphml). Commit src/, not knowledge/ — EXCEPT the
-# hand-authored per-version curation (knowledge/<version>/{decks,routes}.yaml), which IS committed.
+# hand-authored per-version curation (knowledge/<version>/{decks,routes,curate}.yaml), which IS committed.
 knowledge/*
 !knowledge/*/
 knowledge/*/*
 !knowledge/*/decks.yaml
 !knowledge/*/routes.yaml
+!knowledge/*/curate.yaml
 
 # CONFIDENTIAL client material — NDA FDD reports + valuation models (Project Stella /
 # Project Caesar). NEVER commit or push. Also the vision-parse cache (extracted PDF
 # content = confidential) and any local backups.
-test_data/
+raw/
 .cache/
 bak/
 

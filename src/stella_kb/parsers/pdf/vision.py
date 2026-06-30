@@ -37,9 +37,12 @@ def _b64_data_url(image_path: str | Path) -> str:
     return "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
 
 
+_VISION_MAX_TOKENS = 8000  # default response budget; also the historical cache-key baseline (below)
+
+
 def invoke_vision(
     *, system: str, prompt: str, image_path: str | Path,
-    model: str | None = None, max_tokens: int = 8000, timeout: float = 240.0,
+    model: str | None = None, max_tokens: int = _VISION_MAX_TOKENS, timeout: float = 240.0,
 ) -> str:
     """이미지 1장 + 프롬프트 → 모델 응답 텍스트(페이지 markdown).
 
@@ -74,10 +77,18 @@ def invoke_vision(
     return text.strip()
 
 
-def _cache_key(model: str, system: str, user: str) -> str:
+def _cache_key(model: str, system: str, user: str, max_tokens: int = _VISION_MAX_TOKENS) -> str:
+    # NUL-delimited so "ab" + "c" ≠ "a" + "bc". max_tokens is part of the response identity (a
+    # smaller budget can truncate the markdown), so it must key the cache — otherwise two calls with
+    # the same prompt but different budgets collide and the second gets the first's (wrong-length)
+    # result. We mix it in ONLY when it differs from the default, so every entry computed at the
+    # historical default keeps its old key and the existing content-addressed cache stays valid
+    # (no mass re-roll); a non-default budget gets its own key.
     h = hashlib.sha256()
-    # NUL-delimited so "ab" + "c" ≠ "a" + "bc"
-    for part in (model, system, user):
+    parts = [model, system, user]
+    if max_tokens != _VISION_MAX_TOKENS:
+        parts.append(f"max_tokens={max_tokens}")
+    for part in parts:
         h.update(part.encode("utf-8"))
         h.update(b"\x00")
     return h.hexdigest()[:32]
@@ -85,12 +96,15 @@ def _cache_key(model: str, system: str, user: str) -> str:
 
 def get_or_compute(
     *, model: str, system: str, user: str, compute: Callable[[], str],
+    max_tokens: int = _VISION_MAX_TOKENS,
 ) -> str:
     """디스크 캐시 wrapper. 캐시 히트면 즉시 반환, 미스면 compute() 결과를 적재.
 
+    ``max_tokens`` 는 캐시 키 구성요소(:func:`_cache_key`)로 전달 — 같은 페이지라도 응답 토큰
+    예산이 다르면 결과가 달라질 수 있어 키를 분리한다(기본값이면 기존 키 유지).
     성공 결과만 저장한다(compute 가 raise 하면 캐시에 남지 않음).
     """
-    key = _cache_key(model, system, user)
+    key = _cache_key(model, system, user, max_tokens)
     path = _CACHE_DIR / f"{key}.json"
     if path.exists():
         try:

@@ -76,6 +76,23 @@ def llm_model() -> str:
     return get("llm", "model", env="STELLA_LLM_MODEL", default="gemma-4-31B-it")
 
 
+def llm_temperature() -> float:
+    """Sampling temperature for every chat call (default 0.0 — the build/agent want determinism;
+    vLLM is still non-deterministic at 0 due to continuous batching). A query-affecting A/B knob."""
+    return get("llm", "temperature", env="STELLA_LLM_TEMPERATURE", default=0.0, cast=float)
+
+
+def llm_max_tokens() -> int:
+    """Default output-token cap for a chat call when the caller doesn't pass its own. Per-call
+    overrides (the agent personas set their own) still win; this is just the client fallback."""
+    return get("llm", "max_tokens", env="STELLA_LLM_MAXTOK", default=512, cast=int)
+
+
+def llm_timeout() -> float:
+    """Default per-request socket timeout (seconds) for a chat call, when the caller passes none."""
+    return get("llm", "timeout", env="STELLA_LLM_TIMEOUT", default=60.0, cast=float)
+
+
 def tool_llm_url() -> str:
     return get("llm", "tool", "url", env="STELLA_TOOL_LLM_URL", default=llm_url())
 
@@ -95,8 +112,44 @@ def agent_fanout() -> int:
 def agent_router_top_k() -> int:
     """Max pages the router opens for ONE sub-question in a single round. Opening several related
     pages at once (reads fan out in parallel) is cheaper than picking one and paying for a serial
-    ``gap``→retry round, so this is the recall/latency knob. Default 3 keeps prior behavior."""
-    return get("agent", "router_top_k", env="MNA_ROUTER_TOPK", default=3, cast=int)
+    ``gap``→retry round, so this is the recall/latency knob. yaml ``agent.router_top_k`` (5)."""
+    return get("agent", "router_top_k", env="MNA_ROUTER_TOPK", default=5, cast=int)
+
+
+def agent_max_steps() -> int:
+    """Per-branch read budget: the initial page read + up to (max_steps-1) ``gap``→retry rounds.
+    The single source for both the direct ``run`` path and the supervisor's wiki worker (so they
+    no longer drift). Callers may still pass an explicit value (API ``max_steps`` query param)."""
+    return get("agent", "max_steps", env="MNA_MAX_STEPS", default=3, cast=int)
+
+
+def agent_recursion_limit() -> int:
+    """LangGraph ``recursion_limit`` for an agent run: planner → solve fan-out → auditor is ~3
+    supersteps, so the default 25 is generous headroom — raise only if a deep graph trips it."""
+    return get("agent", "recursion_limit", env="MNA_RECURSION_LIMIT", default=25, cast=int)
+
+
+def agent_cross_ref_pair_cap() -> int:
+    """Max PDF↔Excel cross-ref partner pages auto-attached to one sub-question (over-retrieval
+    guard for :func:`agent_cross_ref_pairing`)."""
+    return get("agent", "cross_ref_pair_cap", env="MNA_CROSSREF_CAP", default=3, cast=int)
+
+
+def agent_persona_tokens(persona: str, default: int) -> int:
+    """Per-persona LLM output-token budget (``agent.tokens.<persona>``: planner/router/retriever/
+    verifier/synthesizer). Too tight a budget truncates the JSON object → empty parse → wasted
+    retry round, so this is the quality/cost knob the per-call logging surfaces. ``default`` is the
+    code fallback when the key is absent. Env ``MNA_TOKENS_<PERSONA>`` overrides one persona."""
+    return get("agent", "tokens", persona,
+               env=f"MNA_TOKENS_{persona.upper()}", default=default, cast=int)
+
+
+def agent_persona_timeout(kind: str, default: float) -> float:
+    """Per-call request timeout in seconds (``agent.timeouts.<kind>``). A big-``max_tokens``
+    extraction (retriever) runs long on a loaded vLLM, so it sets a higher value than the shared
+    ``default``. Env ``MNA_TIMEOUT_<KIND>`` overrides one kind."""
+    return get("agent", "timeouts", kind,
+               env=f"MNA_TIMEOUT_{kind.upper()}", default=default, cast=float)
 
 
 def agent_cross_ref_pairing() -> bool:
@@ -117,6 +170,16 @@ def agent_deterministic_retrieve() -> bool:
                default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
 
 
+def agent_skip_verifier() -> bool:
+    """When true, the per-branch verifier LLM call is skipped (verdict forced ``ok`` → no retry).
+
+    Ablation lever for the 'does the verifier earn its call + retry round?' question: in trace mode
+    the verifier already auto-accepts, and otherwise it mostly decides whether to re-route. Default
+    **off** (verifier on); flip via ``MNA_SKIP_VERIFY`` for the A/B before changing any default."""
+    return get("agent", "skip_verifier", env="MNA_SKIP_VERIFY",
+               default=False, cast=lambda v: str(v).lower() in ("1", "true", "yes", "on"))
+
+
 def eval_fanout(default: int = 8) -> int:
     return get("concurrency", "eval_fanout", env="STELLA_EVAL_FANOUT", default=default, cast=int)
 
@@ -128,6 +191,16 @@ def ragas_concurrency() -> int:
 def pdf_describe_concurrency() -> int:
     return get("concurrency", "pdf_describe", env="MNA_PDF_DESCRIBE_CONCURRENCY",
                default=4, cast=int)
+
+
+def pdf_file_concurrency() -> int:
+    """How many PDFs the data-room ingest runs through the vision pipeline *concurrently*. The PDFs
+    are independent during the data-room build (no cross-PDF formula DAG / index), so overlapping
+    them keeps the shared vLLM batch full instead of draining one short PDF at a time. Total in-flight
+    LLM calls ≈ this × ``pdf_describe`` (vision) or × the structure pool — the endpoint scales
+    linearly well past that, so 4 is a safe default. yaml ``concurrency.pdf_files`` / env
+    ``MNA_PDF_FILE_CONCURRENCY``."""
+    return get("concurrency", "pdf_files", env="MNA_PDF_FILE_CONCURRENCY", default=4, cast=int)
 
 
 def max_table_pages() -> int:
@@ -149,6 +222,42 @@ def pdf_structure_cache() -> str:
     return get("cache", "pdf_structure", env="PDF_STRUCTURE_CACHE", default=".cache/pdf_structure")
 
 
+def convert_root() -> Path:
+    """Corpus root whose files ``convert`` normalizes in place (legacy formats → ingestable ones).
+    Defaults to the v0.3 data room; override per-run with ``MNA_CONVERT_ROOT`` / the positional arg."""
+    return Path(get("convert", "root", env="MNA_CONVERT_ROOT", default="raw/v0.3/data"))
+
+
+def pdf_page_cap() -> int:
+    """Max PDF pages the data-room ingest visions per document (front-loaded; covers exec summaries
+    and the substantive schedules). Default mirrors ``wiki.data_room.PDF_PAGE_CAP`` (=25); override
+    with ``MNA_PDF_PAGE_CAP``. ≤0 means no cap (the caller treats that as "all pages")."""
+    return get("wiki", "pdf_page_cap", env="MNA_PDF_PAGE_CAP", default=25, cast=int)
+
+
+def curate_yaml() -> Path:
+    """Curated **ingest manifest** policy for a document data room (the v0.3 build): an
+    ``exclude:``/``include:`` glob list selecting which files of a nested corpus enter the wiki.
+    Hand-authored + git-committed (like ``decks.yaml``/``routes.yaml``), so the curated subset is
+    deterministic and auditable. Default ``knowledge/<version>/curate.yaml`` (version from the
+    build's ``MNA_WIKI_DATA`` dir); explicit file via env ``MNA_WIKI_CURATE``; absent = built-in
+    ``data_room.DEFAULT_EXCLUDE``."""
+    return Path(get("wiki", "curate", env="MNA_WIKI_CURATE",
+                    default=str(curation_dir() / _version_token(wiki_data_dir()) / "curate.yaml")))
+
+
+def soffice_bin() -> str:
+    """LibreOffice headless binary used by ``convert`` (``soffice``/``libreoffice`` on PATH, or an
+    absolute path). It's the converter for every office format we normalize."""
+    return get("convert", "soffice", env="MNA_SOFFICE_BIN", default="soffice")
+
+
+def hwp5odt_bin() -> str:
+    """pyhwp's ``hwp5odt`` binary — the first leg of HWP→ODT→PDF in ``convert``. Defaults to the
+    name on PATH; ``convert`` also falls back to the one installed alongside the venv python."""
+    return get("convert", "hwp5odt", env="MNA_HWP5ODT_BIN", default="hwp5odt")
+
+
 def wiki_parse_cache() -> str:
     """Disk cache for the wiki *parse* LLM calls (``parse_llm``: a sheet's grid → structure).
 
@@ -168,14 +277,14 @@ def wiki_prose_cache() -> str:
 
 
 def dart_mcp_url() -> str:
-    return get("dart", "mcp_url", env="DART_MCP_URL", default="http://127.0.0.1:8002/sse")
+    return get("dart", "mcp_url", env="DART_MCP_URL", default="http://127.0.0.1:8003/sse")
 
 
 # --- wiki build I/O paths (env-overridable; defaults preserve the canonical knowledge/ tree) -----
 # The whole wiki pipeline (dump_md -> parse_llm -> compile -> index -> pdf_pages) reads its
 # input workbook/PDFs and writes its md/parsed/wiki artifacts through these accessors, so a
 # second corpus can be built into an isolated tree without touching the canonical build:
-#     MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 MNA_WIKI_PDF_DIR=test_data/v0.2 \
+#     MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 MNA_WIKI_PDF_DIR=raw/v0.2 \
 #         python -m src.stella_kb.wiki.dump_md --all   (and the rest of the stages)
 # Defaults reproduce the original hardcoded paths exactly, so existing runs/tests are unchanged.
 
@@ -281,5 +390,6 @@ if __name__ == "__main__":  # smoke: print the resolved config
     print(f"config file: {_CONFIG_PATH}  (exists={_CONFIG_PATH.exists()})")
     for name in ("llm_url", "llm_model", "tool_llm_url", "tool_llm_model", "parse_concurrency",
                  "agent_fanout", "eval_fanout", "ragas_concurrency", "pdf_describe_concurrency",
-                 "max_table_pages", "pdf_vision_cache", "pdf_page_png_cache", "dart_mcp_url"):
+                 "pdf_file_concurrency", "max_table_pages", "pdf_vision_cache",
+                 "pdf_page_png_cache", "dart_mcp_url"):
         print(f"  {name:24s} = {globals()[name]()!r}")

@@ -453,7 +453,81 @@ def _year_of(raw: object) -> int | str:
     return int(m.group(0)) if m else str(raw)
 
 
+# --- anchor validation ------------------------------------------------------------------
+
+def _is_value(v: object) -> bool:
+    """A metric anchor must hold an actual datum: a number (not bool) or a date."""
+    import datetime
+    if isinstance(v, bool):
+        return False
+    return isinstance(v, (int, float, datetime.date, datetime.datetime))
+
+
+def validate_anchors(path: str) -> list[str]:
+    """Check every hand-curated metric anchor resolves to a present, valued cell in workbook
+    ``path``; return a list of human-readable problems (empty list = all valid).
+
+    The ``METRICS``/``DUAL_CASE_MGT`` tables hardcode cell refs (``K59`` …), so a workbook reshape
+    (moved column, deleted row) silently makes them read the wrong/empty cell. Run this before a
+    build to catch that drift instead of shipping wrong numbers. Mirrors :func:`attach_metrics`'s
+    resolution (scalar cell / series row across the Fiscal Year axis / vseries span) but only
+    asserts presence + that the cell carries a number or date."""
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    problems: list[str] = []
+    try:
+        for m in METRICS:
+            if m.sheet not in wb.sheetnames:
+                problems.append(f"{m.id}: sheet {m.sheet!r} not in workbook")
+                continue
+            ws = wb[m.sheet]
+            if m.kind == "scalar":
+                v = ws[m.cell].value
+                if not _is_value(v):
+                    problems.append(f"{m.id}: {m.sheet}!{m.cell} = {v!r} (expected a number/date)")
+            elif m.kind == "series":
+                axis = fiscal_year_axis(ws)
+                if not axis:
+                    problems.append(f"{m.id}: no 'Fiscal Year' axis found on {m.sheet}")
+                elif not any(_is_value(ws[f"{c}{m.row}"].value) for c in axis):
+                    problems.append(f"{m.id}: row {m.row} on {m.sheet} has no numeric value across the axis")
+            elif m.kind == "vseries":
+                r0, r1 = m.row_range
+                if m.year_col and m.val_col:
+                    ok = any(_is_value(ws[f"{m.val_col}{r}"].value) for r in range(r0, r1 + 1))
+                else:
+                    ok = any(_is_value(ws.cell(row=r0, column=c).value) for c in range(4, 10))
+                if not ok:
+                    problems.append(f"{m.id}: vseries rows {m.row_range} on {m.sheet} hold no numeric value")
+        # the frozen MGT-case exhibit cells (dual-case scalars)
+        if MGT_EXHIBIT not in wb.sheetnames:
+            problems.append(f"MGT exhibit sheet {MGT_EXHIBIT!r} not in workbook")
+        else:
+            ex = wb[MGT_EXHIBIT]
+            for mid, cell in DUAL_CASE_MGT.items():
+                v = ex[cell].value
+                if not _is_value(v):
+                    problems.append(f"{mid} (MGT): {MGT_EXHIBIT}!{cell} = {v!r} (expected a number/date)")
+    finally:
+        wb.close()
+    return problems
+
+
 if __name__ == "__main__":
+    import sys
+
+    if "--validate" in sys.argv:
+        from .. import FULL_WORKBOOK
+        rest = [a for a in sys.argv[1:] if a != "--validate"]
+        wb_path = rest[0] if rest else FULL_WORKBOOK
+        issues = validate_anchors(wb_path)
+        if issues:
+            print(f"!! {len(issues)} anchor problem(s) in {wb_path}:")
+            for p in issues:
+                print(f"   - {p}")
+            raise SystemExit(1)
+        print(f"OK: all {len(METRICS)} metric anchors (+ {len(DUAL_CASE_MGT)} MGT cells) resolve to a value in {wb_path}")
+        raise SystemExit(0)
+
     from .. import FULL_WORKBOOK  # metric anchors live in the engine sheets, full model only
 
     g = nx.DiGraph()

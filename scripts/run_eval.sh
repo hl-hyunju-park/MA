@@ -26,7 +26,7 @@ PY="${PY:-.venv/bin/python}"
 
 export EVAL_WIKI="${EVAL_WIKI:-knowledge/v0.2/wiki}"
 export EVAL_OUT_DIR="${EVAL_OUT_DIR:-knowledge/eval/v0.2_crosscheck}"
-export EVAL_QUESTIONS="${EVAL_QUESTIONS:-test_data/v0.2/rag_test_dataset/stella_case/ground_truth/cross_check_questions.jsonl}"
+export EVAL_QUESTIONS="${EVAL_QUESTIONS:-raw/v0.1/rag_test_dataset/stella_case/ground_truth/cross_check_questions.jsonl}"
 export EVAL_SOURCE="${EVAL_SOURCE:-wiki}"   # wiki = backend directly · auto = supervisor graph
 CMDS="${*:-eval judge}"
 

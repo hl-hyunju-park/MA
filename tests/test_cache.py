@@ -64,3 +64,15 @@ def test_failures_are_not_cached(tmp_path, monkeypatch):
     assert not list(tmp_path.glob("*.json"))             # nothing cached on failure
     assert llm.cached_chat(MSG, cache_dir=str(tmp_path)) == "ok"  # retry succeeds + caches
     assert list(tmp_path.glob("*.json"))
+
+
+# --- vision cache key: max_tokens is part of the response identity --------------------------
+
+def test_vision_cache_key_distinguishes_max_tokens():
+    from src.stella_kb.parsers.pdf import vision
+    m, s, u = "gemma-4", "sys", "user"
+    # a non-default budget yields a DISTINCT key (else two budgets collide on one cached result)…
+    assert vision._cache_key(m, s, u, 2000) != vision._cache_key(m, s, u, 8000)
+    # …but the historical default keeps its old key, so the existing on-disk cache stays valid
+    assert vision._cache_key(m, s, u) == vision._cache_key(m, s, u, vision._VISION_MAX_TOKENS)
+    assert vision._cache_key(m, s, u, 2000) == vision._cache_key(m, s, u, 2000)  # stable

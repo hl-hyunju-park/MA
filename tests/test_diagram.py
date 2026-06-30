@@ -125,7 +125,8 @@ def test_augment_diagram_calls_vision_and_merges(monkeypatch):
         return recovered
 
     monkeypatch.setattr(vision, "invoke_vision", fake_invoke)
-    monkeypatch.setattr(vision, "get_or_compute", lambda *, model, system, user, compute: compute())
+    monkeypatch.setattr(vision, "get_or_compute",
+                        lambda *, model, system, user, compute, max_tokens=None: compute())
 
     out = diagram.augment_diagram(_UNDER_COVERED, image_path="/x.png", model="m")
     assert calls["n"] == 1

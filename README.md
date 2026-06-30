@@ -60,20 +60,21 @@ src/stella_kb/        # KB 빌드 파이프라인
   parsers/pdf/        # 비전 기반 PDF 파서 (표·[그래프]·[다이어그램] 추출)
   llm.py  config.py   # OpenAI 호환 vLLM 클라이언트 · 중앙 설정(env > config.yaml > default; 경로 접근자)
 apps/agent/           # 질의 에이전트
-  core.py             # 공개 API/파사드: run / ask / answer(라우터) / stream_run — backends/ 백엔드로 분기
-  datasets.py         # 데이터셋(위키 버전) 레지스트리 + 캐시 WikiStore (id → 위키 디렉터리)
-  backends/             # 에이전트 백엔드 (core가 여기로 분기)
+  core.py             # 공개 API/파사드: run / ask / answer(라우터) / stream_run — cores/ 백엔드로 분기
+  utils/datasets.py   # 데이터셋(위키 버전) 레지스트리 + 캐시 WikiStore (id → 위키 디렉터리) · compact_outline
+  cores/                # 에이전트 백엔드 (core가 여기로 분기)
     supervisor.py     #   supervisor StateGraph: wiki/dart 워커 라우팅·병합, 스트리밍 fast-path
     dart.py           #   DART(상장사) tool-calling 백엔드
-    wiki/             #   wiki LangGraph: state · nodes(planner/solve/auditor/synthesizer) · build
+    wiki/             #   wiki LangGraph: engine(LLM 헬퍼·_cell_on_page) · solve · nodes · plan ·
+                      #   navigate · synthesize · audit · state · build
   retrieval/          # 결정론적 위키 접근 (lookup, open_page, trace_links, query_ledger)
   api/                # FastAPI: /ask(GET) · /ask/stream(GET SSE) · /datasets · /health
   prompts/            # 한국어 프롬프트 (route, planner, router, retriever, verifier, synthesizer, supervisor)
 frontend/             # React + Vite 채팅 UI (SSE) · DatasetPicker(버전 선택) · API 프록시
-mcps/dart-mcp/        # 벤더링한 DART 공시 MCP 서버 (Docker, SSE :8002, 토큰 인증)
+mcps/dart-mcp/        # 벤더링한 DART 공시 MCP 서버 (Docker, SSE 127.0.0.1:8003, 토큰 인증)
 eval/                 # stella_crosscheck(v0.1 tier) · qa_eval(v0.2 비전-QA rubric) · ragas_eval
 scripts/              # run_server.sh, run_pipeline.sh, run_eval.sh, run_qa_eval.sh, serve_*.sh
-config.yaml           # 중앙 설정 (env > yaml > default) · agent.datasets 버전 레지스트리; 비밀값은 .env에만
+configs/config.yaml   # 중앙 설정 (env > yaml > default) · agent.datasets 버전 레지스트리; 비밀값은 .env에만
 ```
 
 ## 설치
@@ -98,15 +99,15 @@ python -m src.stella_kb.graph.query       # 질의: resolve → traverse → 인
 # 위키 패러다임 — 기본은 knowledge/v0.1/ 에 빌드. 새 버전은 env로 디렉터리만 지정(코드 수정 불필요):
 scripts/run_pipeline.sh                                   # 정본(v0.1) 빌드 → knowledge/v0.1/wiki/
 MNA_WIKI_WORKBOOK=<x.xlsx> MNA_WIKI_DATA=knowledge/v0.2 \
-  MNA_WIKI_PDF_DIR=test_data/v0.2 scripts/run_pipeline.sh # 새 버전 빌드 → knowledge/v0.2/wiki/
-# 빌드 후 config.yaml 의 agent.datasets 에 한 줄 등록하면 API/UI에서 선택 가능.
+  MNA_WIKI_PDF_DIR=raw/v0.2 scripts/run_pipeline.sh # 새 버전 빌드 → knowledge/v0.2/wiki/
+# 빌드 후 configs/config.yaml 의 agent.datasets 에 한 줄 등록하면 API/UI에서 선택 가능.
 ```
 
 (`knowledge/`의 빌드 산출물은 재생성 가능하며 gitignore 대상 — `src/`만 커밋, `knowledge/`는 커밋 금지.)
 
 ### 데이터셋(버전) 선택
 
-에이전트는 등록된 데이터셋을 **요청 단위로** 선택해 답합니다(동시성 안전). `config.yaml`의
+에이전트는 등록된 데이터셋을 **요청 단위로** 선택해 답합니다(동시성 안전). `configs/config.yaml`의
 `agent.datasets`가 안전한 id → 위키 디렉터리를 매핑하고, 요청에 `dataset` 파라미터로 고릅니다.
 
 ```bash
@@ -122,18 +123,18 @@ cd frontend && npm install && \
   VITE_API_TARGET=http://localhost:5001 npm run dev   # React UI :5173, API 프록시
 ```
 
-사용 포트: **:5001** 에이전트 API · **:5173** 프런트엔드 · **:8001** vLLM · **:8002** DART MCP.
+사용 포트: **:5001** 에이전트 API · **:5173** 프런트엔드 · **:8001** vLLM · **127.0.0.1:8003** DART MCP (로컬 전용).
 터미널을 닫아도 유지하려면 `setsid … &`로 분리 실행(로그는 `.run/` 아래).
 
 ### DART 백엔드
 
-`mcps/dart-mcp/`는 벤더링한 DART 공시 MCP 서버(Docker, SSE :8002, bearer 토큰 인증)입니다.
+`mcps/dart-mcp/`는 벤더링한 DART 공시 MCP 서버(Docker, SSE 127.0.0.1:8003, bearer 토큰 인증)입니다.
 에이전트는 `DART_MCP_TOKEN`으로 인증하며 `run_server.sh`가 `mcps/dart-mcp/.env`에서 이를 로드합니다.
 비밀값(`DART_API_KEY`, `DART_MCP_TOKEN`)은 `.env`에만 두고 소스에는 절대 넣지 않습니다.
 
 ## 평가
 
-`test_data/` 아래 두 정답셋을 공유 vLLM으로 채점하고 결과는 `knowledge/eval/`에 씁니다.
+`raw/` 아래 두 정답셋을 공유 vLLM으로 채점하고 결과는 `knowledge/eval/`에 씁니다.
 
 ```bash
 scripts/run_qa_eval.sh                      # v0.2 비전-QA 54문항(덱 차트/구조도/매트릭스), rubric 채점
@@ -165,7 +166,7 @@ pytest --run-llm       # 라이브 vLLM end-to-end 스모크 테스트까지 실
   자기완결화. 정본 = `knowledge/v0.1`, 신규 멀티덱 테스트셋 = `knowledge/v0.2`. 평가 출력은 `knowledge/eval/`,
   그래프 산출물은 `knowledge/graph/`, 로그는 `knowledge/logs/`. 모든 경로는 `config.py` 접근자로 해석
   (하드코딩 제거) — 빌드/서빙/평가는 env로 디렉터리만 지정.
-- **데이터셋(버전) API + 프런트 선택기.** `apps/agent/datasets.py` 레지스트리(`config.yaml`
+- **데이터셋(버전) API + 프런트 선택기.** `apps/agent/utils/datasets.py` 레지스트리(`configs/config.yaml`
   `agent.datasets`) + 캐시 `WikiStore`. `/ask`·`/ask/stream`에 `dataset` 파라미터(둘 다 GET+Query;
   `/ask` POST 제거), `/datasets` 엔드포인트, React `DatasetPicker`. 위키 디렉터리를 글로벌이 아닌
   요청별 인자로 그래프에 스레딩 → **동시성 안전**.
@@ -198,7 +199,7 @@ pytest --run-llm       # 라이브 vLLM end-to-end 스모크 테스트까지 실
   요약을 읽고, FDD 페이지가 펀드 식별자로 Excel 원천에 링크. `fdcc1c3`
 - **비전 PDF 파서** — FDD 적재를 비전 전용으로(gemma는 멀티모달); breadcrumb 추출로 페이지
   라벨 정리. `eb4a285`, `9cda824`, `70dbe6c`
-- **설정 중앙화** — `config.yaml` + `src/stella_kb/config.py`(env > yaml > default); 비밀값은
+- **설정 중앙화** — `configs/config.yaml` + `src/stella_kb/config.py`(env > yaml > default); 비밀값은
   `.env`에. `d520530`
 - **RAGAS 평가** — 비동기 하니스 + 산술 공정형 커스텀 DiscreteMetric(스톡 지표는 파생 숫자
   답변에서 false-negative). `cdc9a36`, `70dbe6c`
@@ -209,4 +210,4 @@ pytest --run-llm       # 라이브 vLLM end-to-end 스모크 테스트까지 실
   DCI-Agent-Lite(질의시 search→inspect→verify 루프), PageIndex(vectorless 트리 라우팅).
 - **캐시값 주의**: openpyxl은 재계산하지 않으며, 엑셀이 재계산하지 않은 셀은 `None`으로 읽힘.
   최신 숫자는 Excel/LibreOffice에서 재계산 후 추출.
-- 기밀 입력(`knowledge/`의 워크북, `test_data/`의 FDD)은 **gitignore 대상**이며 절대 커밋 금지.
+- 기밀 입력(`knowledge/`의 워크북, `raw/`의 FDD)은 **gitignore 대상**이며 절대 커밋 금지.
