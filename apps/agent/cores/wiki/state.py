@@ -28,6 +28,8 @@ class AgentState(TypedDict, total=False):
     evidence: Annotated[list, operator.add]  # accumulated [{page, cell, term, value, ask}]
     paths: Annotated[list, operator.add]     # provenance chains [{ask, direction, chain:[...]}]
     caveats: list          # auditor's cross-evidence red flags (single write, post-merge)
+    findings: dict         # non-wiki spoke prose ({"dart": ...}) — only set when the supervisor's hub
+                           # synthesizer composes over DART too; absent on the direct wiki path
     answer: str            # final Korean answer — written by nodes.synthesize() AFTER the graph
     trace: Annotated[list, operator.add]     # per-turn record [{step, sub, agent, action, arg, thought}]
     steps: Annotated[int, operator.add]      # retriever reads consumed across branches (work done)

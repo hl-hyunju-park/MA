@@ -10,7 +10,7 @@ a bearer token — i.e. it consumes the exact service we share with others.
 Config (env; defaults target the local services on this box):
     STELLA_TOOL_LLM_URL    tool-calling LLM base URL   (default http://123.37.5.219:8001/v1)
     STELLA_TOOL_LLM_MODEL  served model name           (default gemma-4-31B-it)
-    DART_MCP_URL           DART MCP SSE endpoint        (default http://127.0.0.1:8002/sse)
+    DART_MCP_URL           DART MCP SSE endpoint        (default http://127.0.0.1:8003/sse)
     DART_MCP_TOKEN         bearer token for that server (REQUIRED — no default in source)
 """
 
@@ -103,16 +103,31 @@ async def _arun(question: str) -> dict:
     return {"answer": answer, "trace": trace, "steps": steps}
 
 
+_DART_ERR = "(DART 에이전트 오류: {kind}: {err})"
+
+
+async def arun_safe(question: str) -> dict:
+    """Async DART call that **never raises** — token/network/MCP failures become a
+    ``{answer, trace, steps}`` with the error in ``answer`` (same contract as :func:`run_dart`).
+    Async callers (the supervisor's dart spoke / fallback) must use this, not the raw ``_arun``,
+    so a DART outage degrades to an error note instead of unwinding the supervisor graph and
+    discarding evidence already gathered this run."""
+    try:
+        return await _arun(question)
+    except Exception as e:  # noqa: BLE001 — surface dependency failures as an answer
+        return {"answer": _DART_ERR.format(kind=type(e).__name__, err=e), "trace": [], "steps": 0}
+
+
 def run_dart(question: str) -> dict:
     """Answer a public-company question with the DART tool-calling agent.
 
     Returns ``{answer, trace, steps}`` (same shape as ``core.run``). Network/LLM failures
     are caught and reported in the answer rather than raised, so a caller/router degrades
-    gracefully when the tool LLM (:8001) or the DART server (:8002) is down."""
+    gracefully when the tool LLM (:8001) or the DART server (:8003) is down."""
     try:
         return asyncio.run(_arun(question))
     except Exception as e:  # noqa: BLE001 — surface dependency failures as an answer
-        return {"answer": f"(DART 에이전트 오류: {type(e).__name__}: {e})", "trace": [], "steps": 0}
+        return {"answer": _DART_ERR.format(kind=type(e).__name__, err=e), "trace": [], "steps": 0}
 
 
 def ask_dart(question: str) -> str:

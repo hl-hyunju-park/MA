@@ -1536,7 +1536,7 @@ async def search_json_financial_data(
 #
 # Default transport is stdio (each MCP client launches its own `uv run dart.py`).
 # To SHARE one running instance over the network, set MCP_TRANSPORT=sse:
-#   MCP_TRANSPORT=sse MCP_PORT=8002 uv run dart.py
+#   MCP_TRANSPORT=sse MCP_PORT=8003 uv run dart.py
 # Clients then connect to  http://<host>:<port>/sse . If DART_MCP_TOKEN is set,
 # requests must carry  Authorization: Bearer <token>  (recommended, since the
 # server uses the shared DART_API_KEY for every caller).
@@ -1548,8 +1548,8 @@ def _run():
         mcp.run(transport="stdio")
         return
 
-    host = os.environ.get("MCP_HOST", "0.0.0.0")
-    port = int(os.environ.get("MCP_PORT", "8002"))
+    host = os.environ.get("MCP_HOST", "127.0.0.1")
+    port = int(os.environ.get("MCP_PORT", "8003"))
     mcp.settings.host = host
     mcp.settings.port = port
 

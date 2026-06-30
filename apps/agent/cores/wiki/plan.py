@@ -3,6 +3,8 @@ out to its own ``solve`` branch (LangGraph ``Send``)."""
 
 from __future__ import annotations
 
+from src.stella_kb import config
+
 from . import engine
 from .engine import PLANNER, _rec
 from .state import AgentState
@@ -11,7 +13,7 @@ from .state import AgentState
 def planner_node(state: AgentState) -> AgentState:
     """Break the question into a minimal list of sub-questions (each fans out to a branch)."""
     user = f"INDEX:\n{state['index_md']}\n\nQuestion: {state['question']}\n\nReturn the plan JSON."
-    act, _ = engine._ask(PLANNER, user, 400)
+    act, _ = engine._ask(PLANNER, user, config.agent_persona_tokens("planner", 400), label="planner")
     plan = [p for p in ((act or {}).get("plan") or []) if isinstance(p, dict) and p.get("ask")]
     if not plan:  # parse miss / empty → fall back to a single pass-through sub-question
         plan = [{"ask": state["question"], "hint_terms": []}]

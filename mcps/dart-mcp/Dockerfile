@@ -16,11 +16,13 @@ RUN pip install --no-cache-dir \
 
 COPY dart.py ./
 
-# Serve SSE on 0.0.0.0:8002 by default (override via -e at run time).
+# Serve SSE inside the container on 0.0.0.0:8003 (MCP_HOST must be 0.0.0.0 for Docker
+# port publishing to work — localhost-only access is enforced host-side by publishing
+# `-p 127.0.0.1:8003:8003`, since DART is now consumed in-process by the agent backend).
 ENV MCP_TRANSPORT=sse \
     MCP_HOST=0.0.0.0 \
-    MCP_PORT=8002
+    MCP_PORT=8003
 
-EXPOSE 8002
+EXPOSE 8003
 
 CMD ["python", "dart.py"]

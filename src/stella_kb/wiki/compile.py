@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import concurrent.futures as cf
 import json
+import logging
 from datetime import date, datetime
 from pathlib import Path
 
@@ -35,6 +36,8 @@ import openpyxl
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 from .. import config
+
+log = logging.getLogger("stella_kb.wiki.compile")
 from ..graph.extract import build_dependency_graph
 from ..llm import cached_chat
 from ..prompts import load as load_prompt
@@ -353,6 +356,16 @@ def compile_page(sheet: str, parsed: dict, vals: dict,
     meta = parsed.get("meta") or {}
     tables = usable_tables(parsed, vals)
     items = all_items(parsed, vals)
+
+    # No silent truncation: if a parsed table was dropped from the page (resolved to <2 periods —
+    # usually a real qualitative block, but historically also an axis the parser/_year_at couldn't
+    # read, e.g. Korean "YYYY년" headers), name it so a genuine data drop is visible, not invisible.
+    parsed_titles = [t.get("title") for t in tables_of(parsed)]
+    if len(tables) < len(parsed_titles):
+        kept_titles = {t.get("title") for t in tables}
+        dropped = [t for t in parsed_titles if t not in kept_titles]
+        log.warning("compile %s: dropped %d/%d parsed table(s) (resolved <2 periods): %s",
+                    sheet, len(dropped), len(parsed_titles), dropped)
 
     # currency/unit: a precise token + callout, and per-row units when the sheet mixes them
     ccy_token, ccy_callout, per_row = page_currency(meta, items, sheet)

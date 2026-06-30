@@ -23,7 +23,7 @@ def parse_args():
     p.add_argument("--off", required=True, help='env pin for arm A, e.g. "MNA_X=1" or "-"')
     p.add_argument("--on", required=True, help='env pin for arm B, or "-" for default')
     p.add_argument("--dataset", default=os.environ.get("EVAL_DATASET", "v0.2"))
-    p.add_argument("--qa", default="test_data/v0.2/ground_truth/qa.jsonl")
+    p.add_argument("--qa", default="raw/v0.2/ground_truth/qa.jsonl")
     return p.parse_args()
 
 

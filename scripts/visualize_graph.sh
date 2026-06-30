@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
 #
-# Visualize the query agent's FULL architecture.
+# Visualize the query agent's FULL architecture as a PNG — open docs/agent_graph.png in your IDE.
 #
-# The agent is two backends behind an LLM router (apps/agent/core.py):
-#   answer() → route() ─┬─ wiki  → LangGraph (planner → fan-out solve → synthesizer)
-#                       └─ dart  → tool-calling agent over the DART MCP (dart.py)
-# Only the *wiki* StateGraph is a compiled LangGraph; the route tier and the DART branch
-# live in core.py, so get_graph() can't see them. This script therefore emits BOTH:
-#   1. Full architecture (route + both backends) — the source of truth in
-#      docs/agent_graph.md (mermaid + PNG). This is what you usually want.
-#   2. Compiled wiki sub-graph — rendered live from apps.agent.cores.wiki.build, so the wiki
-#      half is always verified against the committed code (drift check).
+# The agent is a supervisor-centric HUB-AND-SPOKE (apps/agent/core.py → cores/supervisor.py):
+#   answer(auto) → supervisor ─┬─ wiki  (research spoke → evidence; LangGraph planner→solve→auditor)
+#                              ├─ dart  (research spoke → findings; tool-calling over the DART MCP)
+#                              └─ synthesizer (finalize: one cited answer over all gathered)
+# Only the *wiki* StateGraph is a compiled LangGraph; the supervisor hub + DART branch live in
+# core.py, so get_graph() can't see them. This script therefore emits BOTH:
+#   1. Full architecture (supervisor + spokes) — the source of truth in docs/agent_graph.md
+#      (mermaid). The PNG is rendered FROM that block, so they never drift.
+#   2. Compiled wiki sub-graph — rendered live from apps.agent.cores.wiki.build (drift check).
 #
 # Outputs:
 #   - ASCII + Mermaid (both views) → terminal (no network)
-#   - PNG of the full architecture → docs/agent_graph.png   (via mermaid.ink; skipped offline)
-#   - opens docs/agent_graph.html (interactive Cytoscape, full architecture) if possible
+#   - docs/agent_graph.png   → PNG via mermaid.ink (skipped if this box has no internet)
 #
 # Usage (from anywhere):
-#     scripts/visualize_graph.sh             # render both views + PNG, open the HTML
-#     NO_OPEN=1 scripts/visualize_graph.sh   # don't try to open a browser
+#     scripts/visualize_graph.sh        # render the terminal views + write docs/agent_graph.png
 #
 set -euo pipefail
 
@@ -28,20 +26,19 @@ PY="${PY:-.venv/bin/python}"
 [ -x "$PY" ] || PY=python
 
 OUT_PNG="docs/agent_graph.png"
-HTML="docs/agent_graph.html"
 ARCH_MD="docs/agent_graph.md"
 
-echo "==> rendering the FULL agent architecture (route + wiki + dart) ..."
+echo "==> rendering the FULL agent architecture (supervisor + wiki + dart) ..."
 "$PY" - "$OUT_PNG" "$ARCH_MD" <<'PY'
 import sys
 from pathlib import Path
 
 out_png, arch_md = sys.argv[1], sys.argv[2]
 
-# --- 1. Full architecture: the source-of-truth mermaid lives in docs/agent_graph.md,
-#        fenced between <!-- full-arch:begin --> / <!-- full-arch:end --> so the docs and
-#        this render never drift. (The route tier + DART branch aren't in the compiled
-#        LangGraph, so there's nothing to introspect — the diagram is authored.)
+# --- 1. Full architecture: the source-of-truth mermaid lives in docs/agent_graph.md, fenced
+#        between <!-- full-arch:begin --> / <!-- full-arch:end --> so the docs and the PNG never
+#        drift. (The supervisor hub + DART branch aren't in the compiled LangGraph, so there's
+#        nothing to introspect — the diagram is authored.)
 md = Path(arch_md).read_text(encoding="utf-8")
 try:
     block = md.split("<!-- full-arch:begin -->", 1)[1].split("<!-- full-arch:end -->", 1)[0]
@@ -49,7 +46,7 @@ try:
 except IndexError:
     sys.exit(f"!! couldn't find the full-arch:begin/end mermaid block in {arch_md}")
 
-print("\n--- Mermaid (FULL architecture: route + wiki + dart) ---")
+print("\n--- Mermaid (FULL architecture: supervisor + wiki + dart) ---")
 print(full_mermaid)
 
 # --- 2. Compiled wiki sub-graph: rendered live from code as a drift check on the wiki half.
@@ -67,11 +64,10 @@ try:
             print(g.draw_ascii())
         except Exception as e:                   # grandalf missing, etc.
             print(f"   (ascii unavailable: {e})")
-        print(g.draw_mermaid())
-except Exception as e:                           # import/build failure shouldn't kill the PNG
+except Exception as e:                           # import/build failure shouldn't kill the render
     print(f"   (compiled sub-graph unavailable: {type(e).__name__}: {e})")
 
-# --- 3. PNG of the FULL architecture (mermaid.ink — needs internet).
+# --- 3. PNG of the FULL architecture (mermaid.ink — needs internet on THIS box).
 try:
     from langchain_core.runnables.graph_mermaid import draw_mermaid_png
     png = draw_mermaid_png(full_mermaid)
@@ -81,22 +77,7 @@ except Exception as e:
     print(f"\n   (PNG skipped — no internet to mermaid.ink? {type(e).__name__}: {e})")
 PY
 
-if [ "${NO_OPEN:-0}" = "1" ]; then
-  exit 0
-fi
-
-opener=""
-for c in xdg-open open; do
-  command -v "$c" >/dev/null 2>&1 && { opener="$c"; break; }
-done
-
-if [ -n "$opener" ]; then
-  echo "==> opening $HTML (interactive Cytoscape — full architecture) ..."
-  "$opener" "$HTML" >/dev/null 2>&1 || true
-  [ -f "$OUT_PNG" ] && "$opener" "$OUT_PNG" >/dev/null 2>&1 || true
-else
-  echo "==> no browser opener (xdg-open/open). View manually:"
-  echo "    interactive : $HTML"
-  [ -f "$OUT_PNG" ] && echo "    full PNG    : $OUT_PNG"
-  echo "    all views   : $ARCH_MD  (mermaid; renders on GitHub)"
-fi
+echo ""
+echo "==> done. View the graph:"
+[ -f "$OUT_PNG" ] && echo "    PNG (open in your IDE) : $OUT_PNG"
+echo "    mermaid (renders on GitHub) : $ARCH_MD"

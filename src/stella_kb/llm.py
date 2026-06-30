@@ -27,9 +27,16 @@ BASE_URL = config.llm_url()
 MODEL = config.llm_model()
 
 
-def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 512,
-         timeout: float = 60.0) -> str:
-    """One chat-completions round trip; returns the assistant text."""
+def chat(messages: list[dict], temperature: float | None = None, max_tokens: int | None = None,
+         timeout: float | None = None) -> str:
+    """One chat-completions round trip; returns the assistant text. Unset params fall back to the
+    config defaults (``llm.temperature`` / ``llm.max_tokens`` / ``llm.timeout``)."""
+    if temperature is None:
+        temperature = config.llm_temperature()
+    if max_tokens is None:
+        max_tokens = config.llm_max_tokens()
+    if timeout is None:
+        timeout = config.llm_timeout()
     payload = json.dumps({
         "model": MODEL,
         "messages": messages,
@@ -45,16 +52,23 @@ def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 512,
     return data["choices"][0]["message"]["content"]
 
 
-def chat_stream(messages: list[dict], temperature: float = 0.0, max_tokens: int = 512,
-                timeout: float = 120.0):
+def chat_stream(messages: list[dict], temperature: float | None = None,
+                max_tokens: int | None = None, timeout: float | None = None):
     """Streaming :func:`chat` — yields assistant content deltas as the model emits them.
 
     Uses the OpenAI-compatible ``stream: true`` SSE protocol: the server sends ``data: {json}``
     lines, each with a ``choices[0].delta.content`` fragment, terminated by ``data: [DONE]``.
     Stdlib only (urllib reads the chunked response line by line). The buffered :func:`chat` stays
     the default; this is for the one place streaming pays off — the final user-facing answer
-    (the apps.agent synthesizer), so it appears token by token instead of all at once.
+    (the apps.agent synthesizer), so it appears token by token instead of all at once. Unset
+    params fall back to the config defaults (``llm.temperature`` / ``max_tokens`` / ``timeout``).
     """
+    if temperature is None:
+        temperature = config.llm_temperature()
+    if max_tokens is None:
+        max_tokens = config.llm_max_tokens()
+    if timeout is None:
+        timeout = config.llm_timeout()
     payload = json.dumps({
         "model": MODEL,
         "messages": messages,

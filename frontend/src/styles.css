@@ -71,6 +71,28 @@ main { flex: 1; overflow-y: auto; padding: 24px 0 8px; display: flex; flex-direc
 .bubble.error { color: var(--err); border-color: #4a2a2a; background: #1f1518; }
 .cell-ref { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-size: 13px; color: #cdd6ff; }
 
+/* answer sources — "where it actually came from" (cell-anchored, grouped by page) */
+.sources { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
+.sources > summary {
+  cursor: pointer; padding: 9px 14px; font-size: 12.5px; color: var(--muted);
+  list-style: none; user-select: none;
+}
+.sources > summary::-webkit-details-marker { display: none; }
+.sources > summary::before { content: "▸ "; color: var(--accent); }
+.sources[open] > summary::before { content: "▾ "; }
+.src-list { list-style: none; margin: 0; padding: 2px 14px 12px; }
+.src-item { padding: 8px 0; border-top: 1px solid var(--border); }
+.src-item:first-child { border-top: none; }
+.src-page { font-size: 12.5px; color: var(--text); font-weight: 500; word-break: break-word; }
+.src-cells { list-style: none; margin: 4px 0 0; padding: 0; }
+.src-cells li { font-size: 12px; color: var(--muted); padding: 2px 0; }
+.src-cells code {
+  font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 5px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.src-term { color: var(--muted); }
+.src-val { color: var(--text); }
+
 /* routing trace */
 .trace { margin-top: 4px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
 .trace-summary {

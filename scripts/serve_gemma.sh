@@ -18,7 +18,7 @@ MODEL="${MODEL:-google/gemma-4-31B-it}"
 SERVED_NAME="${SERVED_NAME:-gemma-4-31B-it}"
 IMAGE="${IMAGE:-vllm-openai:v0.19.0-gemma4}"   # purpose-built gemma-4 image on this box
 PORT="${PORT:-8001}"                            # :33333=guest gemma, :8000=project API
-GPUS="${GPUS:-4,5}"                             # free A100s; TP size derived below
+GPUS="${GPUS:-2,3,4,5}"                             # free A100s; TP size derived below
 HF_CACHE="${HF_CACHE:-/data/.cache}"            # HF hub cache (models-- live here directly)
 NAME="${NAME:-hj-gemma4-tools}"
 # Tool-call parser. This gemma-4 image emits its native

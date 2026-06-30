@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."                    # repo root, regardless of caller's c
 PY="${PY:-.venv/bin/python}"
 [ -x "$PY" ] || PY=python
 
-# DART backend needs a bearer token to reach the shared DART MCP server (SSE :8002); load it
+# DART backend needs a bearer token to reach the local DART MCP server (SSE 127.0.0.1:8003); load it
 # from mcps/dart-mcp/.env (gitignored) like run_server.sh. Absent → wiki tool still works.
 DART_ENV="mcps/dart-mcp/.env"
 if [ -z "${DART_MCP_TOKEN:-}" ] && [ -f "$DART_ENV" ]; then

@@ -15,6 +15,7 @@ from ...retrieval import (
     cross_ref_partners,
     extract_page_items,
     lookup,
+    lookup_pages,
     open_page,
     query_ledger,
     route_lookup,
@@ -22,9 +23,11 @@ from ...retrieval import (
 )
 from . import engine
 from .engine import RETRIEVER, ROUTER, VERIFIER, _cell_on_page, _per, _rec
+from .navigate import navigate
 from .state import AgentState
 
-_CROSS_PAIR_CAP = 3   # max PDF↔Excel cross-ref partner pages added per sub-question (over-retrieval guard)
+# max PDF↔Excel cross-ref partner pages added per sub-question lives in config (over-retrieval guard):
+#   config.agent_cross_ref_pair_cap()
 
 
 # ---------------------------------------------------------- per-sub-question sub-agents
@@ -45,6 +48,19 @@ def _match_page(raw_pick: str, valid: set, by_norm: dict) -> str | None:
     return by_norm.get(re.sub(r"\s+", "", p).casefold())
 
 
+def _expand_section(raw_pick: str, candidates: list[str]) -> list[str]:
+    """Resolve a router pick that named a *section heading* (not a page) to the real page keys
+    under it. On a large data-room corpus the planner/router see only the compact heading outline
+    (``compact_outline``), so the router picks ``1.1. 경영실태평가`` — a section, not a page. Page
+    keys are ``<section-heading>__<file>``, so any candidate whose normalized key begins with the
+    pick's normalized heading belongs to that section. ``candidates`` is the lookup-surfaced page
+    set (already term-relevant + bounded), so this stays on-topic and small."""
+    pref = re.sub(r"\s+", "", raw_pick.strip().strip("\"'")).casefold()
+    if not pref:
+        return []
+    return [c for c in candidates if re.sub(r"\s+", "", c).casefold().startswith(pref + "__")]
+
+
 def _route(sub: dict, tried: list, index: dict, index_md: str,
            wiki_dir: str | None = None) -> tuple[list, dict | None, str]:
     """Pick the wiki page(s) for one sub-question; on a trace sub-Q expand along the DAG.
@@ -63,8 +79,12 @@ def _route(sub: dict, tried: list, index: dict, index_md: str,
         picks = route_lookup(hints, index, wiki_dir)
         if picks:
             rthought = "routes.yaml 직결 — 라우터 LLM 생략"
+        elif index.get("nav"):  # large data-room corpus → drill the folder tree instead of the
+            picks = navigate(sub["ask"], index, hints, wiki_dir=wiki_dir)   # reads router.yaml +
+            if picks:                                                       # index.md from disk
+                rthought = "nav 드릴다운 (router.yaml + index.md 탐색)"
 
-    if not picks:  # no curated hit (or this is a retry) → fall back to the LLM router
+    if not picks:  # no curated/nav hit (or this is a retry) → fall back to the flat-index LLM router
         lookups = "\n\n".join(lookup(index, t) for t in hints) if hints else "(no hint terms)"
         avoid = (
             (
@@ -80,16 +100,29 @@ def _route(sub: dict, tried: list, index: dict, index_md: str,
             f"답이 여러 페이지에 흩어져 있거나 비교·교차검증이면 관련 페이지를 한 번에 "
             f"최대 {top_k}개까지 고르세요(가능성 높은 순). Return the pages JSON."
         )
-        act, _ = engine._ask(ROUTER, user, 400)
+        act, _ = engine._ask(ROUTER, user, config.agent_persona_tokens("router", 400), label="router")
         valid = set(index.get("pages", {}).keys())
         by_norm = {re.sub(r"\s+", "", v).casefold(): v for v in valid}
+        # Lookup-surfaced page set: the term-relevant, bounded candidates a section-heading pick
+        # expands into when the router saw only the compact outline (see _expand_section).
+        cand_pages = lookup_pages(index, hints) if hints else []
         seen: set = set()
         for raw in (act or {}).get("pages") or []:  # tolerate [[wikilink]]/quote forms
             m = _match_page(raw, valid, by_norm)
-            if m and m not in seen:  # resolve + dedup; drop hallucinations
-                seen.add(m)
-                picks.append(m)
+            matches = [m] if m else _expand_section(raw, cand_pages)  # heading → its pages
+            for mm in matches:
+                if mm and mm not in seen:  # resolve + dedup; drop hallucinations
+                    seen.add(mm)
+                    picks.append(mm)
         rthought = (act or {}).get("thought", "")
+        # Deterministic recall floor: if the LLM router yielded no valid page (it whiffed, or on a
+        # huge data-room corpus picked only section headings the outline showed it), fall back to
+        # the alias lookup's own top candidates. The lookup already resolved the hint terms to the
+        # right pages — words→nodes — so this rescues recall without another LLM round. Only fires
+        # when picks is empty, so a successful route is never overridden (no v0.1/v0.2 change).
+        if not picks and cand_pages:
+            picks = cand_pages[:top_k]
+            rthought = (rthought + " · lookup 폴백(라우터 무효 → 별칭 후보)").strip(" ·")
 
     picks = picks[:top_k]  # cap the router's page picks (recall/cost knob)
     path = None            # populated below for trace-mode sub-questions; intentionally None here
@@ -108,7 +141,7 @@ def _route(sub: dict, tried: list, index: dict, index_md: str,
         extra: list = []
         for p in picks:
             extra += cross_ref_partners(index, p, cap=2, hint_terms=hints)
-        extra = [p for p in dict.fromkeys(extra) if p not in picks][:_CROSS_PAIR_CAP]
+        extra = [p for p in dict.fromkeys(extra) if p not in picks][:config.agent_cross_ref_pair_cap()]
         if extra:
             picks = picks + extra
             rthought = (rthought + " +cross-ref").strip()
@@ -144,9 +177,17 @@ def _retrieve(ask: str, pages: list, wiki_dir: str | None = None,
         # (all sibling rows/bands + narrative facts), so a single page can yield many evidence rows —
         # give a wide headroom so the JSON never truncates (a cut-off object → parse fail → empty
         # evidence → wasted retries, the opposite of the fuller-extraction goal).
-        act, _ = engine._ask(system=RETRIEVER, user=user, max_tokens=3000, timeout=240.0)
+        act, raw = engine._ask(system=RETRIEVER, user=user,
+                               max_tokens=config.agent_persona_tokens("retriever", 3000),
+                               timeout=config.agent_persona_timeout("retriever", 240.0),
+                               label=f"retriever:{page}")
+        # A dense grid can overflow max_tokens and truncate the JSON mid-array → parse_action fails
+        # and the whole page yields nothing. Salvage the rows that DID close before the cutoff.
+        rows = (act or {}).get("evidence")
+        if not rows:
+            rows = engine.salvage_array(raw, "evidence")
         out = []
-        for e in (act or {}).get("evidence") or []:
+        for e in rows or []:
             if not isinstance(e, dict):
                 continue
             cell = str(e.get("cell", ""))
@@ -194,11 +235,13 @@ def _verify(sub: dict, ev: list, path: dict | None) -> tuple[str, str]:
     """Judge whether the sub-question is answered. A traced chain is accepted as-is."""
     if sub.get("mode") == "trace" and path and path.get("chain"):
         return "ok", "provenance chain traced"
+    if config.agent_skip_verifier():  # ablation: no verifier call, no retry — accept what we have
+        return "ok", "verifier skipped (MNA_SKIP_VERIFY)"
     ev_txt = (
         "\n".join(f"- {e['term']}{_per(e)} = {e['value']}  ({e['cell']}, {e['page']})" for e in ev) or "(no evidence)"
     )
     user = f"Sub-question: {sub['ask']}\n\nEvidence:\n{ev_txt}\n\nReturn the verdict JSON."
-    act, _ = engine._ask(VERIFIER, user, 300)
+    act, _ = engine._ask(VERIFIER, user, config.agent_persona_tokens("verifier", 300), label="verifier")
     verdict = ((act or {}).get("verdict") or ("ok" if ev else "gap")).lower()
     return verdict, (act or {}).get("reason", "")
 
@@ -213,7 +256,8 @@ def solve_node(state: AgentState, index: dict) -> AgentState:
     index_md = state["index_md"]  # the router prompt needs the ToC
     wiki_dir = state.get("wiki_dir")  # per-request dataset dir (None → process default)
     idx = state.get("sub_idx", 0)
-    max_steps = max(1, state.get("max_steps", 3))  # per-branch read budget (initial + retries)
+    # per-branch read budget (initial + retries); state always carries it, config is the fallback
+    max_steps = max(1, state.get("max_steps") or config.agent_max_steps())
     verbose = state.get("verbose")
 
     tried: list = []

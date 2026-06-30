@@ -1,12 +1,14 @@
 import { highlightCells } from "../format";
 import TracePanel from "./TracePanel";
-import type { TraceStep } from "../api";
+import SourcesPanel from "./SourcesPanel";
+import type { Source, TraceStep } from "../api";
 
 export interface ChatTurn {
   id: number;
   role: "user" | "bot";
   text: string; // empty while the bot is still thinking
   trace: TraceStep[];
+  sources?: Source[]; // where the answer came from (cell-anchored)
   status: "thinking" | "done" | "error";
 }
 
@@ -32,6 +34,7 @@ export default function ChatMessage({ turn }: { turn: ChatTurn }) {
               {turn.status === "error" ? `⚠ ${turn.text}` : highlightCells(turn.text)}
             </div>
           )}
+          {turn.status === "done" && <SourcesPanel sources={turn.sources ?? []} />}
         </>
       )}
     </div>

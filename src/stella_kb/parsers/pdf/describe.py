@@ -162,6 +162,12 @@ def describe_pdf(
             # ref[page_num] is the pymupdf text; None means pymupdf also found nothing
             fallback = ref.get(page_num) or f"(vision describe failed: page {page_num})"
             return page_num, fallback, True
+        # Structure-diagram enforcement: if the page's diagram legend declares a category with no
+        # tagged box (the dense-org-chart failure the single vision pass leaves — CS-01/CS-02), a
+        # focused second vision call recovers the per-category box list and merges it in. No-op +
+        # best-effort otherwise, and cached, so it costs nothing on a clean page or a rebuild.
+        from .diagram import augment_diagram
+        md = augment_diagram(md, str(png), resolved_model)
         return page_num, md, False
 
     page_nums = list(range(1, total + 1))

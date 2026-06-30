@@ -57,16 +57,18 @@ def _label_from_page(md: str) -> str:
     return label.strip(" |·-\t")
 
 
-def pdf_to_sections(pdf_path: str, min_chars: int = 200) -> list[tuple[str, str]]:
+def pdf_to_sections(pdf_path: str, min_chars: int = 200,
+                    max_pages: int | None = None) -> list[tuple[str, str]]:
     """Vision-parse the PDF (gemma multimodal) into ``[(label, body), ...]`` — one per page.
 
     The vision parser emits faithful per-page markdown (tables, charts, reading order) for
     these slide-deck FDD reports, so each PDF page becomes one wiki section. Short pages
     (covers/dividers, < ``min_chars``) are dropped; a duplicate label gets a ``#n`` suffix so
-    page names stay unique."""
+    page names stay unique. ``max_pages`` caps vision to the first N pages (None = whole PDF) — a
+    cost bound for data rooms with 100+ page text documents where the tail is boilerplate."""
     from ..parsers.pdf import describe_pdf
 
-    pages, _ = describe_pdf(pdf_path)
+    pages, _ = describe_pdf(pdf_path, max_pages=max_pages)
     out: list[tuple[str, str]] = []
     seen: dict[str, int] = {}
     for sp in pages:
@@ -257,7 +259,7 @@ def _page_md(name: str, tag: str, label: str, s: dict, xref: list[str] | None = 
 
 def build_pages(
     pdf_path: str, pages_dir: Path, structurer=structure_section, index: dict | None = None,
-    doc: str | None = None, title_pins: dict | None = None,
+    doc: str | None = None, title_pins: dict | None = None, max_pages: int | None = None,
 ) -> tuple[dict, dict, dict]:
     """Build PDF wiki pages and the index pieces to merge into an existing wiki index.
 
@@ -276,7 +278,7 @@ def build_pages(
     from concurrent.futures import ThreadPoolExecutor
 
     pages_dir.mkdir(parents=True, exist_ok=True)
-    sections = pdf_to_sections(pdf_path)
+    sections = pdf_to_sections(pdf_path, max_pages=max_pages)
 
     with ThreadPoolExecutor(max_workers=6) as ex:  # one LLM call per section, bounded
         structured = list(ex.map(lambda ls: (ls[0], ls[1], structurer(ls[0], ls[1])), sections))

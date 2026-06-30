@@ -9,6 +9,15 @@ export interface TraceStep {
   thought: string;
 }
 
+// One cell-anchored source the answer was built from — "where it actually came from".
+export interface Source {
+  page: string; // the wiki page / data file (its key encodes the folder path, "__"-separated)
+  cell: string; // the exact cell (e.g. "C4" or "Sheet!C4")
+  term: string; // the labelled item at that cell
+  value: string; // its value
+  path?: string[]; // full nav-folder breadcrumb, e.g. ["2. 재무","2.9. 특수관계자","주석","별도"]
+}
+
 export interface Health {
   status: string; // "ok" | "degraded"
   wiki_pages: number;
@@ -37,7 +46,7 @@ export async function getDatasets(): Promise<DatasetsInfo> {
 export interface StreamHandlers {
   onStep?: (s: TraceStep) => void;
   onToken?: (text: string) => void;
-  onAnswer?: (answer: string, steps: number) => void;
+  onAnswer?: (answer: string, steps: number, sources: Source[]) => void;
   onError?: (detail: string) => void;
   onDone?: () => void;
 }
@@ -69,8 +78,12 @@ export function askStream(
     h.onToken?.(d.text);
   });
   es.addEventListener("answer", (e) => {
-    const d = JSON.parse((e as MessageEvent).data) as { answer: string; steps: number };
-    h.onAnswer?.(d.answer, d.steps);
+    const d = JSON.parse((e as MessageEvent).data) as {
+      answer: string;
+      steps: number;
+      sources?: Source[];
+    };
+    h.onAnswer?.(d.answer, d.steps, d.sources ?? []);
   });
   es.addEventListener("error", (e) => {
     // EventSource fires a bare "error" on network drop too (no data payload)

@@ -91,7 +91,7 @@ def test_compiled_app_supports_async_drive(index):
     assert hasattr(app, "ainvoke") and hasattr(app, "astream")
 
 
-def _stub_ask(system, user, max_tokens):
+def _stub_ask(system, user, max_tokens, timeout=120.0, label=""):
     """Deterministic LLM stub so the async vs sync drive can be compared without the vLLM.
     Branches on which prompt is passed (planner/router/verifier). Synthesis no longer goes
     through ``_ask`` — it streams via ``chat``/``chat_stream``, stubbed separately below."""
@@ -282,8 +282,8 @@ def test_build_pages_title_pin_freezes_name(tmp_path, monkeypatch):
     # 2nd kept section's breadcrumb fell back to "페이지 2" (would otherwise take the LLM title);
     # FDD<n> numbers by kept-section position, so this is FDD2.
     monkeypatch.setattr(pdf_pages, "pdf_to_sections",
-                        lambda p: [("Overview", "표\n\n| x | y |\n|---|---|\n| 1 | 2 |"),
-                                   ("페이지 2", "본문\n\n| a | b |\n|---|---|\n| 1 | 2 |")])
+                        lambda p, **k: [("Overview", "표\n\n| x | y |\n|---|---|\n| 1 | 2 |"),
+                                        ("페이지 2", "본문\n\n| a | b |\n|---|---|\n| 1 | 2 |")])
     stub = lambda label, text: {"title": "Volatile LLM Title #4", "aliases": ["조직도"]}
 
     pinned, _, _ = pdf_pages.build_pages("fake.pdf", tmp_path / "a", structurer=stub,

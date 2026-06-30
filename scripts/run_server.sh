@@ -19,7 +19,7 @@ PY="${PY:-.venv/bin/python}"
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-5001}"
 
-# DART backend needs a bearer token to reach the shared DART MCP server (SSE :8002).
+# DART backend needs a bearer token to reach the local DART MCP server (SSE 127.0.0.1:8003).
 # The token lives in mcps/dart-mcp/.env (gitignored, never in source); load it here so
 # auto/dart-routed questions can authenticate. Absent token → wiki still works; dart 503s.
 DART_ENV="mcps/dart-mcp/.env"
@@ -31,7 +31,8 @@ fi
                              || echo "    DART_MCP_TOKEN unset (dart backend will 503; wiki unaffected)"
 
 # Check every registered dataset wiki (config.yaml agent.datasets); we serve all of them
-# (v0.1 + v0.2). Parse the `datasets:` block: lines like "    v0.1: knowledge/v0.1/wiki  # ...".
+# (v0.1 + v0.2 + v0.3 + any future version). Parse the `datasets:` block: lines like
+# "    v0.1: knowledge/v0.1/wiki  # ...".
 echo "==> checking wiki artifacts (config.yaml agent.datasets) ..."
 CONFIG_YAML="configs/config.yaml"; [ -f "$CONFIG_YAML" ] || CONFIG_YAML="config.yaml"
 WIKI_DIRS="$(awk '

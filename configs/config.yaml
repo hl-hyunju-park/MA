@@ -11,6 +11,11 @@ llm:
   # Shared gemma-4 vLLM (wiki build, agent synthesis, RAGAS judge, PDF vision).
   url: http://123.37.5.219:8001/v1        # env: STELLA_LLM_URL
   model: gemma-4-31B-it                    # env: STELLA_LLM_MODEL
+  temperature: 0.0    # env: STELLA_LLM_TEMPERATURE — sampling temp for runtime chat() calls
+                      #   (agent synthesis/route); the build's cached_chat stays fixed at 0.0 so a
+                      #   config change never re-rolls the content-addressed wiki cache
+  max_tokens: 512     # env: STELLA_LLM_MAXTOK  — chat() default output cap (per-call budgets win)
+  timeout: 60         # env: STELLA_LLM_TIMEOUT — chat() default request timeout (s)
   tool:                                    # DART tool-calling agent (may differ from above)
     url: http://123.37.5.219:8001/v1       # env: STELLA_TOOL_LLM_URL
     model: gemma-4-31B-it                  # env: STELLA_TOOL_LLM_MODEL
@@ -30,7 +35,7 @@ cache:
   pdf_page_png: .cache/pages      # env: PDF_PAGE_PNG_CACHE  (rendered page PNGs)
 
 dart:
-  mcp_url: http://127.0.0.1:8002/sse   # env: DART_MCP_URL  (non-secret; token stays in .env)
+  mcp_url: http://127.0.0.1:8003/sse   # env: DART_MCP_URL  (non-secret; token stays in .env)
 
 agent:
   wiki_dir: knowledge/v0.2/wiki   # env: MNA_AGENT_WIKI  — the 'default' dataset the agent serves
@@ -41,7 +46,23 @@ agent:
   datasets:
     v0.1: knowledge/v0.1/wiki   # canonical Centroid valuation-model wiki (63-sheet model)
     v0.2: knowledge/v0.2/wiki       # v0.2 test corpus: Excel ledgers + CAESAR/LIFE/STELLA FDD decks
+    v0.3: knowledge/v0.3/wiki       # KDB Life DD data room: dumped ledgers + page-capped PDFs (data_room.py)
   router_top_k: 5            # env: MNA_ROUTER_TOPK — max pages the router opens per round
+  max_steps: 3               # env: MNA_MAX_STEPS — per-branch read budget (initial read + retries);
+                             #   single source for both the direct run and the supervisor's wiki worker
+  recursion_limit: 25        # env: MNA_RECURSION_LIMIT — LangGraph hard stop per run
+  cross_ref_pair_cap: 3      # env: MNA_CROSSREF_CAP — max PDF↔Excel cross-ref partner pages per sub-Q
+  tokens:                    # per-persona LLM output-token budgets (too tight → cut-off JSON →
+                             #   empty parse → wasted retry; env: MNA_TOKENS_<PERSONA>)
+    planner: 400
+    router: 400
+    retriever: 3000          #   the heavy one: full-row + narrative extraction
+    verifier: 300
+    synthesizer: 900
+  timeouts:                  # per-call request timeouts in seconds (env: MNA_TIMEOUT_<KIND>)
+    default: 120             #   planner/router/verifier (the _ask default)
+    retriever: 240           #   big max_tokens → runs long on a loaded vLLM
+    synthesizer: 120
   deterministic_retrieve: false  # env: MNA_DET_RETRIEVE — parse 'value [cell]' tables instead
                                  # of an LLM call per structured page; off pending a quality A/B
   # routes:                 # env: MNA_AGENT_ROUTES — explicit routes.yaml (single-dataset only)

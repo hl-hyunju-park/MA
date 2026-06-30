@@ -16,7 +16,7 @@ PY="${PY:-.venv/bin/python}"
 [ -x "$PY" ] || PY=python
 
 export EVAL_DATASET="${EVAL_DATASET:-v0.2}"
-export EVAL_QA="${EVAL_QA:-test_data/v0.2/ground_truth/qa.jsonl}"
+export EVAL_QA="${EVAL_QA:-raw/v0.2/ground_truth/qa.jsonl}"
 export EVAL_OUT_DIR="${EVAL_OUT_DIR:-knowledge/eval/v0.2}"
 CMDS="${*:-eval judge}"
 

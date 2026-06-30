@@ -19,6 +19,8 @@ from __future__ import annotations
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
+from src.stella_kb import config
+
 from .nodes import auditor_node, planner_node, solve_node
 from .state import AgentState
 
@@ -28,7 +30,8 @@ def _fanout(state: AgentState):
     return [
         Send("solve", {"sub": p, "sub_idx": i, "index_md": state["index_md"],
                        "wiki_dir": state.get("wiki_dir"),
-                       "max_steps": state.get("max_steps", 8), "verbose": state.get("verbose")})
+                       "max_steps": state.get("max_steps") or config.agent_max_steps(),
+                       "verbose": state.get("verbose")})
         for i, p in enumerate(state["plan"])
     ]
 

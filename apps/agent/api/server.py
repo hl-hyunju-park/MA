@@ -126,7 +126,7 @@ def list_datasets() -> dict:
 @app.get("/ask", response_model=AskResponse)
 async def ask_endpoint(
     question: str = Query(..., description="KO/EN question about the Centroid valuation or a public company."),
-    max_steps: int = Query(3, ge=1, le=20, description="Per-branch read budget (initial read + retries)."),
+    max_steps: int | None = Query(None, ge=1, le=20, description="Per-branch read budget (initial read + retries); default from config agent.max_steps."),
     source: Literal["auto", "wiki", "dart"] = Query(
         "auto", description="Backend: auto-route, 'wiki' (Centroid KB), or 'dart' (public co. via DART)."),
     include_trace: bool = Query(True, description="Return the routing trace."),
@@ -160,7 +160,7 @@ async def ask_endpoint(
 @app.get("/ask/stream")
 async def ask_stream(
     question: str = Query(..., description="KO/EN question about the valuation."),
-    max_steps: int = Query(3, ge=1, le=20, description="Per-branch read budget (initial read + retries)."),
+    max_steps: int | None = Query(None, ge=1, le=20, description="Per-branch read budget (initial read + retries); default from config agent.max_steps."),
     source: Literal["auto", "wiki"] = Query(
         "auto", description="Backend: 'auto' (supervisor — wiki + DART as tools) or 'wiki' (Centroid KB only)."),
     dataset: str | None = Query(None, description="Wiki dataset/version id (e.g. 'v0.2'); "

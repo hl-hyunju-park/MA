@@ -41,6 +41,24 @@ def test_parse_action(raw, expected):
     assert parse_action(raw) == expected
 
 
+# --- salvage_array: recover complete rows from a TRUNCATED evidence array --------------
+def test_salvage_array_recovers_complete_rows():
+    from apps.agent.cores.wiki.engine import salvage_array
+    truncated = (
+        '```json\n{"thought":"x","evidence":[\n'
+        '{"page":"P","cell":"E20","term":"지급여력비율","period":"2025-03","value":"163.95"},\n'
+        '{"page":"P","cell":"E21","term":"기본 {중첩}","period":"2025-03","value":"61"},\n'
+        '{"page":"P","cell":"E22","term":"truncated mid-obj'      # cut off, no closing brackets
+    )
+    assert parse_action(truncated) is None                        # strict parse gives up
+    rows = salvage_array(truncated, "evidence")
+    assert [r["cell"] for r in rows] == ["E20", "E21"]            # the two that closed; 3rd dropped
+    assert rows[1]["term"] == "기본 {중첩}"                         # brace/string-safe
+    # a clean array round-trips; a missing key yields nothing
+    assert len(salvage_array('{"evidence":[{"cell":"A1","value":"1"}]}', "evidence")) == 1
+    assert salvage_array('{"other":[]}', "evidence") == []
+
+
 # --- trace_links: BFS over the sheet-level formula DAG (the provenance hop) ------------
 
 # A → B → {C, D}, with a B↔D cycle; only A and C have pages.

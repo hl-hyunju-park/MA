@@ -116,7 +116,11 @@ def _year_at(value: object) -> object | None:
         return s
     low = s.casefold()
 
-    m = re.search(r"\b(20[0-3]\d)\b", low)              # full 4-digit year (e.g. 2024)
+    # full 4-digit year (e.g. 2024). Guard on non-digit neighbours rather than \b: a Korean
+    # header "2019년"/"2024년 8월" has no word boundary after the digits (년 is a word char), so
+    # \b silently missed every "YYYY년" axis — dropping whole tables (e.g. 임직원 수's 연도별
+    # 재직인원수). (?<![0-9])…(?![0-9]) still rejects a longer number like "20241".
+    m = re.search(r"(?<![0-9])(20[0-3]\d)(?![0-9])", low)
     if m:
         year = int(m.group(1))
     else:                                               # 2-digit year in a fiscal context
@@ -137,6 +141,9 @@ def _year_at(value: object) -> object | None:
     q = re.search(r"([1-4])\s*([hq])(?![a-z])", low) or re.search(r"(\d\d?)\s*(m)(?![a-z])", low)
     if q:
         return f"{q.group(1)}{q.group(2).upper()}{year % 100:02d}"
+    km = re.search(r"(\d\d?)\s*월", s)  # Korean interim month: "2024년 8월" -> "8M24"
+    if km:
+        return f"{int(km.group(1))}M{year % 100:02d}"
     return year
 
 

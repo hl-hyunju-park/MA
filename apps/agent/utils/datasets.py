@@ -55,6 +55,26 @@ def _load_md(path: str, _mtime: float) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+# Above this size the full per-page INDEX.md is too large to hand a planner/router prompt:
+# a ~2,000-page data-room ToC is ~370KB (~190k tokens) and overflows the model context → the
+# endpoint rejects the request (HTTP 400). Past the threshold we fall back to the heading-only
+# section outline; the precise page candidates still reach the router via the alias ``lookup``.
+# Small corpora (v0.1/v0.2 ≈ 17KB) stay under it and are handed the full ToC, byte-for-byte
+# unchanged — so this only kicks in for the large document-data-room datasets (v0.3+).
+INDEX_MD_MAX_CHARS = 60_000
+
+
+def compact_outline(md: str) -> str:
+    """INDEX.md compacted to fit a planner/router prompt. Returns ``md`` unchanged when it is
+    already small enough (the common case); otherwise keeps every ``#``-prefixed line — the
+    section/sub-section hierarchy — and drops the per-page bullets, which a huge ToC can't fit.
+    The router still gets exact page candidates from the alias ``lookup``, so dropping the
+    bullets costs the planner only breadth, not the ability to resolve a page."""
+    if len(md) <= INDEX_MD_MAX_CHARS:
+        return md
+    return "\n".join(ln for ln in md.splitlines() if ln.lstrip().startswith("#"))
+
+
 class WikiStore:
     """A resolved dataset: its wiki dir plus lazily-loaded, cached ``index`` and ``index_md``.
 
@@ -76,6 +96,13 @@ class WikiStore:
     @property
     def index_md(self) -> str:
         return _load_md(str(self.index_md_path), self.index_md_path.stat().st_mtime)
+
+    @property
+    def index_outline(self) -> str:
+        """The ToC handed to the planner/router — full INDEX.md for small datasets, the
+        heading-only outline once it grows past :data:`INDEX_MD_MAX_CHARS` (see
+        :func:`compact_outline`). Use this, not ``index_md``, for prompt seeding."""
+        return compact_outline(self.index_md)
 
 
 @lru_cache(maxsize=8)

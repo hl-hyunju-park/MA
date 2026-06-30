@@ -134,6 +134,30 @@ def _norm(term: str) -> str:
     return re.sub(r"\s+", "", term).casefold()
 
 
+def lookup_pages(index: dict, terms: list[str], limit: int = 12) -> list[str]:
+    """The page keys an alias ``lookup`` surfaces for ``terms`` — ordered, deduped, bounded.
+
+    Same matcher as :func:`lookup` (exact-normalized then substring), but returns the underlying
+    page keys instead of the rendered text, ranked exact-term-first per term. The router uses this
+    to expand a section-heading pick (``1.1. 경영실태평가``) to the real page keys under it
+    (``1.1. 경영실태평가__…``) when the compact outline gave it only headings to choose from."""
+    ai = index["alias_index"]
+    out: list[str] = []
+    seen: set = set()
+    for term in terms or []:
+        key = _norm(str(term))
+        if not key:
+            continue
+        hits = [h for ak, bucket in ai.items() if key == ak or key in ak or ak in key
+                for h in bucket]
+        hits.sort(key=lambda h: (_norm(h["term"]) != key, h["page"]))
+        for h in hits[:limit]:
+            if h["page"] not in seen:
+                seen.add(h["page"])
+                out.append(h["page"])
+    return out
+
+
 def lookup(index: dict, term: str, limit: int = 12) -> str:
     """Resolve a term to candidate pages via the alias index (the words→node resolver).
 

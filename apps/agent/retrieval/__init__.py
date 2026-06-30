@@ -11,6 +11,7 @@ from .tools import (
     load_index,
     load_routes,
     lookup,
+    lookup_pages,
     open_page,
     persist_answer,
     query_ledger,
@@ -21,6 +22,6 @@ from .tools import (
 __all__ = [
     "WIKI_DIR", "INDEX_MD", "INDEX_JSON", "PAGES_DIR", "LEDGERS_DIR",
     "load_index", "lookup", "open_page", "trace_links", "query_ledger",
-    "load_routes", "route_lookup", "extract_page_items", "persist_answer",
+    "load_routes", "route_lookup", "lookup_pages", "extract_page_items", "persist_answer",
     "cross_ref_partners",
 ]

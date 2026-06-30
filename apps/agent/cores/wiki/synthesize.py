@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+from src.stella_kb import config
 from src.stella_kb.llm import chat, chat_stream
 
 from . import engine
@@ -16,6 +17,9 @@ from .engine import SYNTHESIZER, _per, _rec
 from .state import AgentState
 
 _SYNTH_FALLBACK = "evidence는 수집되었으나 최종 답변 정리에 실패했습니다."
+
+# Friendly block labels for non-wiki spoke findings; unknown sources render under their own key.
+_FINDINGS_LABELS = {"dart": "DART 공시 자료(상장사)"}
 
 
 def _synth_user(state: AgentState) -> str:
@@ -42,9 +46,18 @@ def _synth_user(state: AgentState) -> str:
         ("\n\n감사 경고(AUDIT — 반드시 반영, 무시 금지):\n" + "\n".join(f"- {c}" for c in caveats)) if caveats else ""
     )
 
+    # Non-wiki spoke findings (prose, not cell-anchored) — present only when the supervisor's hub
+    # synthesizer composes over another spoke too. Rendered generically **per source** so a new spoke
+    # is never silently dropped: a known source gets a friendly label, others fall back to the source
+    # key. Absent for the direct wiki path, so this block is empty there (wiki-only synthesis unchanged).
+    findings = state.get("findings") or {}
+    findings_block = "".join(
+        f"\n\n[{_FINDINGS_LABELS.get(src, src)}]\n{txt}" for src, txt in findings.items() if txt
+    )
+
     return (
         f"Question: {state['question']}\n\nEvidence collected from the wiki:\n{ev_txt}"
-        f"{path_block}{caveat_block}\n\n최종 답변을 작성하세요."
+        f"{path_block}{caveat_block}{findings_block}\n\n최종 답변을 작성하세요."
     )
 
 
@@ -60,7 +73,8 @@ def synthesize(state: AgentState) -> tuple[str, dict]:
         raw = chat(
             [{"role": "system", "content": SYNTHESIZER},
              {"role": "user", "content": _synth_user(state)}],
-            max_tokens=900, timeout=120.0,
+            max_tokens=config.agent_persona_tokens("synthesizer", 900),
+            timeout=config.agent_persona_timeout("synthesizer", 120.0),
         )
     return (raw or "").strip() or _SYNTH_FALLBACK, _synth_trace()
 
@@ -74,7 +88,8 @@ def synthesize_stream(state: AgentState) -> Iterator[str]:
         for delta in chat_stream(
             [{"role": "system", "content": SYNTHESIZER},
              {"role": "user", "content": _synth_user(state)}],
-            max_tokens=900, timeout=120.0,
+            max_tokens=config.agent_persona_tokens("synthesizer", 900),
+            timeout=config.agent_persona_timeout("synthesizer", 120.0),
         ):
             emitted = True
             yield delta
