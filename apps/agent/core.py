@@ -13,11 +13,18 @@ the right page on its own, using only the deterministic ``apps.agent.retrieval``
 from __future__ import annotations
 
 import asyncio
+import logging
+import threading
 from typing import Any
+
+log = logging.getLogger("apps.agent.wiki")
+
+from src.stella_kb import config
 
 from .cores.wiki import AgentState, build_app
 from .cores.wiki.nodes import synthesize, synthesize_stream
 from .retrieval import INDEX_MD, load_index
+from .utils.datasets import compact_outline
 
 
 def route(question: str) -> str:
@@ -37,11 +44,12 @@ def route(question: str) -> str:
         )
         act = parse_action(raw) or {}
         return "dart" if act.get("source") == "dart" else "wiki"
-    except Exception:  # noqa: BLE001 — routing must never hard-fail; fall back to wiki
+    except Exception as e:  # noqa: BLE001 — routing must never hard-fail; fall back to wiki
+        log.warning("route() failed (%s: %s) — defaulting to wiki", type(e).__name__, e)
         return "wiki"
 
 
-def answer(question: str, source: str = "auto", max_steps: int = 3,
+def answer(question: str, source: str = "auto", max_steps: int | None = None,
            verbose: bool = False, index: dict | None = None, store: Any = None,
            save: bool = False) -> dict[str, Any]:
     """Unified entry point: route (or honor an explicit ``source``) and dispatch.
@@ -52,7 +60,7 @@ def answer(question: str, source: str = "auto", max_steps: int = 3,
     Returns ``{source, answer, trace, steps}`` — same shape for both backends."""
     if source == "auto":
         from .cores.supervisor import run_supervised  # supervisor StateGraph (wiki + DART worker nodes)
-        return run_supervised(question, store=store)
+        return run_supervised(question, store=store, max_steps=max_steps)
     if source == "dart":
         from .cores.dart import run_dart
         return {"source": "dart", **run_dart(question)}
@@ -61,18 +69,21 @@ def answer(question: str, source: str = "auto", max_steps: int = 3,
                   save=save)}
 
 
-def _seed(question: str, max_steps: int, verbose: bool = False, store: Any = None) -> AgentState:
+def _seed(question: str, max_steps: int | None, verbose: bool = False, store: Any = None) -> AgentState:
     """Initial graph state: INDEX ToC + the question. Each node builds its own prompt.
 
     ``store`` (a :class:`apps.agent.utils.datasets.WikiStore`) selects the dataset for this run — its
     INDEX.md seeds the planner and its dir threads to the page/ledger reads. ``None`` falls back
-    to the process-default wiki (``INDEX_MD`` global / ``tools`` globals)."""
+    to the process-default wiki (``INDEX_MD`` global / ``tools`` globals). ``max_steps=None`` →
+    ``config.agent_max_steps()`` (the single read-budget default)."""
     return {
         "question": question,
-        "index_md": store.index_md if store is not None else INDEX_MD.read_text(encoding="utf-8"),
+        "index_md": (store.index_outline if store is not None
+                     else compact_outline(INDEX_MD.read_text(encoding="utf-8"))),
         "wiki_dir": str(store.wiki_dir) if store is not None else None,
         "plan": [], "evidence": [], "paths": [], "trace": [], "steps": 0,
-        "max_steps": max_steps, "verbose": verbose,
+        "max_steps": max_steps if max_steps is not None else config.agent_max_steps(),
+        "verbose": verbose,
     }
 
 
@@ -88,7 +99,7 @@ def _renumber(trace: list) -> list:
 
 def _limit() -> dict:
     # planner → solve (fan-out) → auditor = 3 supersteps (synthesis runs after the graph); headroom
-    return {"recursion_limit": 25}
+    return {"recursion_limit": config.agent_recursion_limit()}
 
 
 def _resolve_index(store: Any, index: dict | None) -> dict:
@@ -118,27 +129,39 @@ async def _aiter_in_thread(make_gen):
     queue: asyncio.Queue = asyncio.Queue()
     loop = asyncio.get_running_loop()
     done = object()
+    stop = threading.Event()
 
     def produce():
+        gen = make_gen()
         try:
-            for item in make_gen():
+            for item in gen:
+                if stop.is_set():            # consumer went away — stop pulling tokens
+                    break
                 loop.call_soon_threadsafe(queue.put_nowait, item)
         except Exception as exc:  # noqa: BLE001 — forward to the consumer on the loop
             loop.call_soon_threadsafe(queue.put_nowait, exc)
         finally:
+            if hasattr(gen, "close"):        # propagate GeneratorExit into the blocking (urllib) stream
+                gen.close()
             loop.call_soon_threadsafe(queue.put_nowait, done)
 
     loop.run_in_executor(None, produce)
-    while True:
-        item = await queue.get()
-        if item is done:
-            break
-        if isinstance(item, Exception):
-            raise item
-        yield item
+    try:
+        while True:
+            item = await queue.get()
+            if item is done:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield item
+    finally:
+        # consumer closed (SSE client disconnected / broke out) → signal the worker to stop instead
+        # of letting it drain a whole LLM token stream into a queue nobody reads. Cooperative: the
+        # producer checks `stop` between items, so it stops within one in-flight token, not instantly.
+        stop.set()
 
 
-def run(question: str, max_steps: int = 3, verbose: bool = False,
+def run(question: str, max_steps: int | None = None, verbose: bool = False,
         index: dict | None = None, app: Any = None, store: Any = None,
         save: bool = False) -> dict[str, Any]:
     """Navigate the wiki to answer ``question``; return ``{answer, trace, steps, evidence}``.
@@ -171,13 +194,13 @@ def run(question: str, max_steps: int = 3, verbose: bool = False,
     return result
 
 
-def ask(question: str, max_steps: int = 3, verbose: bool = False,
+def ask(question: str, max_steps: int | None = None, verbose: bool = False,
         index: dict | None = None) -> str:
     """Convenience wrapper around :func:`run` that returns just the answer string."""
     return run(question, max_steps=max_steps, verbose=verbose, index=index)["answer"]
 
 
-async def arun(question: str, max_steps: int = 3, verbose: bool = False,
+async def arun(question: str, max_steps: int | None = None, verbose: bool = False,
                index: dict | None = None, app: Any = None, store: Any = None) -> dict[str, Any]:
     """Async twin of :func:`run` — drives the graph with ``ainvoke`` so the event loop is never
     blocked (the sync node functions run in LangGraph's executor). Same return shape as ``run``.
@@ -189,7 +212,26 @@ async def arun(question: str, max_steps: int = 3, verbose: bool = False,
     return _build_result(final, answer, synth_trace)
 
 
-async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
+async def aresearch(question: str, max_steps: int | None = None, index: dict | None = None,
+                    app: Any = None, store: Any = None) -> dict[str, Any]:
+    """Research-only wiki pass: drive the graph (planner → fan-out solve → auditor) and return the
+    gathered context **without synthesizing**. The supervisor's wiki-researcher spoke calls this so
+    the *hub* synthesizer — not the wiki pipeline — writes the final answer over the combined
+    evidence. Returns the graph's accumulated research channels:
+    ``{evidence, paths, caveats, trace, steps}`` (no ``answer``)."""
+    if app is None:
+        app = build_app(_resolve_index(store, index))
+    final: dict[str, Any] = await app.ainvoke(_seed(question, max_steps, False, store), config=_limit())
+    return {
+        "evidence": final.get("evidence", []),
+        "paths": final.get("paths", []),
+        "caveats": final.get("caveats", []),
+        "trace": _renumber(list(final.get("trace", []))),
+        "steps": final.get("steps", 0),
+    }
+
+
+async def aanswer(question: str, source: str = "auto", max_steps: int | None = None,
                   verbose: bool = False, index: dict | None = None,
                   store: Any = None) -> dict[str, Any]:
     """Async twin of :func:`answer`: dispatch by ``source``. ``"auto"`` runs the supervisor
@@ -197,7 +239,7 @@ async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
     backend (the sync DART agent runs via ``to_thread`` so it doesn't block the loop)."""
     if source == "auto":
         from .cores.supervisor import arun_supervised  # supervisor StateGraph (wiki + DART worker nodes)
-        return await arun_supervised(question, store=store)
+        return await arun_supervised(question, store=store, max_steps=max_steps)
     if source == "dart":
         from .cores.dart import run_dart
         return {"source": "dart", **(await asyncio.to_thread(run_dart, question))}
@@ -205,7 +247,7 @@ async def aanswer(question: str, source: str = "auto", max_steps: int = 3,
             **(await arun(question, max_steps=max_steps, verbose=verbose, index=index, store=store))}
 
 
-def stream_run(question: str, max_steps: int = 3, index: dict | None = None, store: Any = None):
+def stream_run(question: str, max_steps: int | None = None, index: dict | None = None, store: Any = None):
     """Generator yielding routing events as the agent navigates, for live (SSE) display.
 
     Uses LangGraph's native ``app.stream(stream_mode="values")`` for the routing steps; the graph
@@ -216,7 +258,8 @@ def stream_run(question: str, max_steps: int = 3, index: dict | None = None, sto
       {"type": "token",  "text": str}                 # one per answer fragment, in order
       {"type": "answer", "answer": str, "steps": int} # the joined final answer (last)
     """
-    app = build_app(_resolve_index(store, index))
+    idx = _resolve_index(store, index)
+    app = build_app(idx)
     emitted = 0
     final: dict[str, Any] = {}
     for state in app.stream(_seed(question, max_steps, False, store), config=_limit(),
@@ -231,10 +274,38 @@ def stream_run(question: str, max_steps: int = 3, index: dict | None = None, sto
         parts.append(delta)
         yield {"type": "token", "text": delta}
     yield {"type": "answer", "answer": "".join(parts).strip() or "(답변 없음)",
-           "steps": final.get("steps", 0)}
+           "steps": final.get("steps", 0), "sources": evidence_sources(final.get("evidence", []), idx)}
 
 
-async def astream_run(question: str, max_steps: int = 3, index: dict | None = None,
+def evidence_sources(evidence: list, index: dict | None = None, cap: int = 60) -> list[dict]:
+    """Compact the agent's cell-anchored evidence into the answer's **source list** for the UI
+    ("where it came from") — deduped by (page, cell), order-stable, capped. Each item is the page
+    the fact came from + the exact cell, term and value, plus ``path`` — the page's full nav-folder
+    breadcrumb (``['2. 재무', '2.9. 특수관계자', …]``) when the dataset has a nav tree."""
+    nav = (index or {}).get("nav")
+    pages = (index or {}).get("pages", {})
+    crumb = None
+    if nav:
+        from src.stella_kb.wiki.nav_tree import page_breadcrumb
+        crumb = page_breadcrumb
+    seen: set = set()
+    out: list = []
+    for e in evidence or []:
+        page, cell = e.get("page", ""), str(e.get("cell", ""))
+        if not page or (page, cell) in seen:
+            continue
+        seen.add((page, cell))
+        item = {"page": page, "cell": cell, "term": e.get("term", ""),
+                "value": str(e.get("value", ""))}
+        if crumb:
+            item["path"] = crumb(page, pages.get(page, {}).get("source", "XLSX"), nav)
+        out.append(item)
+        if len(out) >= cap:
+            break
+    return out
+
+
+async def astream_run(question: str, max_steps: int | None = None, index: dict | None = None,
                       store: Any = None, source: str = "wiki"):
     """Async twin of :func:`stream_run` — an async generator over ``app.astream`` so the SSE
     endpoint can stream without pinning a threadpool thread for the connection's lifetime. Emits
@@ -245,10 +316,11 @@ async def astream_run(question: str, max_steps: int = 3, index: dict | None = No
     which yields the same event shape; ``"wiki"`` (the default) streams the wiki graph directly."""
     if source == "auto":
         from .cores.supervisor import astream_supervised
-        async for ev in astream_supervised(question, store=store):
+        async for ev in astream_supervised(question, max_steps=max_steps, store=store):
             yield ev
         return
-    app = build_app(_resolve_index(store, index))
+    idx = _resolve_index(store, index)
+    app = build_app(idx)
     emitted = 0
     final: dict[str, Any] = {}
     async for state in app.astream(_seed(question, max_steps, False, store), config=_limit(),
@@ -263,4 +335,4 @@ async def astream_run(question: str, max_steps: int = 3, index: dict | None = No
         parts.append(delta)
         yield {"type": "token", "text": delta}
     yield {"type": "answer", "answer": "".join(parts).strip() or "(답변 없음)",
-           "steps": final.get("steps", 0)}
+           "steps": final.get("steps", 0), "sources": evidence_sources(final.get("evidence", []), idx)}
