@@ -55,7 +55,7 @@ export interface StreamHandlers {
  * Open an SSE stream to /ask/stream and dispatch events. The backend emits:
  *   event: step   -> TraceStep
  *   event: token  -> { text }            // one answer fragment, streamed in order
- *   event: answer -> { answer, steps }   // the joined final answer (last)
+ *   event: answer -> { answer, steps, sources }   // the joined final answer (last)
  *   event: error  -> { detail }
  *   event: done   -> {}
  * Returns a cancel function that closes the EventSource.

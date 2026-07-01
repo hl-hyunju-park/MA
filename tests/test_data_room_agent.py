@@ -73,6 +73,22 @@ def test_lookup_pages_resolves_substring_term_to_pages():
     assert len(pgs) == len(set(pgs))  # deduped
 
 
+def test_lookup_pages_limit_counts_pages_not_alias_hits():
+    # A dense page (many aliases matching the term) must not consume the whole `limit` and starve
+    # sibling pages: `limit` bounds distinct PAGES, not raw alias hits (regression — the old slice
+    # `hits[:limit]` before dedup returned only ['P1'] here, dropping P2).
+    dense = [{"page": "P1", "cell": f"B{i}", "term": f"지급여력비율 {i}"} for i in range(20)]
+    idx = {
+        "pages": {"P1": {"kind": "ledger"}, "P2": {"kind": "ledger"}},
+        "alias_index": {
+            **{f"지급여력비율{i}": [dense[i]] for i in range(20)},   # 20 aliases, all on P1
+            "지급여력비율계": [{"page": "P2", "cell": "B1", "term": "지급여력비율 합계"}],
+        },
+    }
+    pgs = lookup_pages(idx, ["지급여력비율"], limit=5)   # limit < dense-page alias count
+    assert "P1" in pgs and "P2" in pgs                    # sibling not starved out
+
+
 def test_expand_section_maps_heading_pick_to_its_pages():
     cand = lookup_pages(_grid_index(), ["지급여력비율"])
     # router picked the section heading (from the compact outline), not a page key

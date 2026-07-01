@@ -84,6 +84,19 @@ def test_resolve_grains_follows_converted_sibling(tmp_path):
     assert unconverted == [orphan]
 
 
+def test_resolve_grains_dedups_converted_xls(tmp_path):
+    # convert.py runs without --replace, so a legacy a.xls AND its converted a.xlsx both survive on
+    # disk and both land in the curated list. resolve_grains must yield the .xlsx ONCE — the .xls
+    # branch (follows the sibling) and the .xlsx branch must not both append it (regression: dup page).
+    root = tmp_path / "d"
+    (root / "f").mkdir(parents=True)
+    xls = root / "f" / "a.xls"; xls.write_bytes(b"")
+    xlsx = root / "f" / "a.xlsx"; xlsx.write_bytes(b"")      # convert.py's non-destructive sibling
+    sheets, pdfs, unconverted = dr.resolve_grains([xls, xlsx])
+    assert sheets == [xlsx]                                   # exactly one, not [xlsx, xlsx]
+    assert (pdfs, unconverted) == ([], [])
+
+
 def test_sheet_page_name_namespaces_and_uniquifies(tmp_path):
     root = tmp_path / "d"
     p = root / "2. 재무" / "2.6.3. 수익증권" / "x.xlsx"

@@ -6,7 +6,7 @@
 # the dart-mcp agent test) gets HTTP 400. This stands up our own instance with
 # --enable-auto-tool-choice so the full MCP agent loop can run.
 #
-# GPUs 4,5 (TP=2), host port 8001, model cache at /data/.cache (already pulled).
+# GPUs 2,3,4,5 (TP=4), host port 8001, model cache at /data/.cache (already pulled).
 # Point clients at  http://localhost:8001/v1  (model name: gemma-4-31B-it).
 #
 # Usage:
