@@ -131,19 +131,28 @@ def resolve_grains(files: list[Path]) -> tuple[list[Path], list[Path], list[Path
     pdfs: list[Path] = []
     unconverted: list[Path] = []
     seen_pdf: set[Path] = set()
+    seen_sheet: set[Path] = set()
 
     def add_pdf(p: Path) -> None:
         if p not in seen_pdf:
             seen_pdf.add(p)
             pdfs.append(p)
 
+    def add_sheet(p: Path) -> None:                # dedup: a converted .xls and its .xlsx sibling
+        if p not in seen_sheet:                    # both survive on disk (convert runs without --replace)
+            seen_sheet.add(p)
+            sheets.append(p)
+
     for f in files:
         ext = f.suffix.lower()
         if ext in SPREADSHEET_EXTS:
-            sheets.append(f)
+            add_sheet(f)
         elif ext == ".xls":
             x = f.with_suffix(".xlsx")            # openpyxl can't read raw .xls — need convert.py's sibling
-            (sheets if x.exists() else unconverted).append(x if x.exists() else f)
+            if x.exists():
+                add_sheet(x)
+            else:
+                unconverted.append(f)
         elif ext == ".pdf":
             add_pdf(f)
         elif ext in CONVERT_TO_PDF:
@@ -438,8 +447,9 @@ def plan_report(root: Path, only: str | None = None) -> dict[str, Counter]:
     exclude, include = load_policy()
     files = curate(root, exclude, include)
     if only:
-        only = _nfc(only)
-        files = [f for f in files if section_of(f, root).startswith(only)]
+        only = _nfc(only)                          # match build()'s predicate exactly so the dry-run
+        files = [f for f in files if _nfc(f.relative_to(root).as_posix()).startswith(only)
+                 or section_of(f, root).startswith(only)]   # previews what --only actually ingests
     by_section: Counter = Counter(section_of(f, root) for f in files)
     by_ext: Counter = Counter(f.suffix.lower() for f in files)
     sheets, pdfs, unconverted = resolve_grains(files)

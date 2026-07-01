@@ -132,14 +132,14 @@ def _image_runner(soffice: str, profile_url: str, target_ext: str,
     CCITT-G4 fax scans LibreOffice can't import)."""
     from PIL import Image
     for s in srcs:
-        im = Image.open(s)
         frames = []
-        try:
-            while True:
-                frames.append(im.convert("RGB"))
-                im.seek(im.tell() + 1)
-        except EOFError:
-            pass
+        with Image.open(s) as im:                  # close the source fd; convert() returns copies that
+            try:                                   # outlive the context, so the save below is still valid
+                while True:
+                    frames.append(im.convert("RGB"))
+                    im.seek(im.tell() + 1)
+            except EOFError:
+                pass
         frames[0].save(outdir / (s.stem + "." + target_ext), "PDF",
                        save_all=True, append_images=frames[1:], resolution=200.0)
 

@@ -151,10 +151,14 @@ def lookup_pages(index: dict, terms: list[str], limit: int = 12) -> list[str]:
         hits = [h for ak, bucket in ai.items() if key == ak or key in ak or ak in key
                 for h in bucket]
         hits.sort(key=lambda h: (_norm(h["term"]) != key, h["page"]))
-        for h in hits[:limit]:
+        added = 0                                  # cap distinct *pages* per term, not raw alias hits:
+        for h in hits:                             # a dense page with many aliases must not starve siblings
+            if added >= limit:
+                break
             if h["page"] not in seen:
                 seen.add(h["page"])
                 out.append(h["page"])
+                added += 1
     return out
 
 
